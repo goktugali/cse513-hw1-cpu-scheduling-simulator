@@ -23,27 +23,15 @@
     --seg-l: 82%;
     --seg-edge: rgba(0, 0, 0, 0.45);
     --row-hl: #f0f4ff;
+    --lane: #f9f9f7;
     color-scheme: light;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg: #131316;
-      --panel: #1c1c20;
-      --text: #ececec;
-      --muted: #a2a2a8;
-      --border: #34343a;
-      --accent: #7ea4ff;
-      --accent-text: #0b1530;
-      --danger: #ff8a80;
-      --danger-bg: #3a1c1a;
-      --ok: #7bd88f;
-      --ok-bg: #15301c;
-      --idle-a: #2b2b30;
-      --idle-b: #222226;
-      --seg-s: 42%;
-      --seg-l: 36%;
-      --seg-edge: rgba(255, 255, 255, 0.6);
-      --row-hl: #232a3d;
+      --bg: #131316; --panel: #1c1c20; --text: #ececec; --muted: #a2a2a8; --border: #34343a;
+      --accent: #7ea4ff; --accent-text: #0b1530; --danger: #ff8a80; --danger-bg: #3a1c1a;
+      --ok: #7bd88f; --ok-bg: #15301c; --idle-a: #2b2b30; --idle-b: #222226;
+      --seg-s: 42%; --seg-l: 36%; --seg-edge: rgba(255, 255, 255, 0.6); --row-hl: #232a3d; --lane: #18181b;
       color-scheme: dark;
     }
   }
@@ -51,7 +39,7 @@
     --bg: #131316; --panel: #1c1c20; --text: #ececec; --muted: #a2a2a8; --border: #34343a;
     --accent: #7ea4ff; --accent-text: #0b1530; --danger: #ff8a80; --danger-bg: #3a1c1a;
     --ok: #7bd88f; --ok-bg: #15301c; --idle-a: #2b2b30; --idle-b: #222226;
-    --seg-s: 42%; --seg-l: 36%; --seg-edge: rgba(255, 255, 255, 0.6); --row-hl: #232a3d;
+    --seg-s: 42%; --seg-l: 36%; --seg-edge: rgba(255, 255, 255, 0.6); --row-hl: #232a3d; --lane: #18181b;
     color-scheme: dark;
   }
 
@@ -65,6 +53,7 @@
   main { max-width: 1180px; margin: 0 auto; padding: 24px 16px 64px; }
   h1 { font-size: 1.6rem; margin: 0 0 4px; }
   h2 { font-size: 1.1rem; margin: 0 0 12px; }
+  h3 { font-size: 0.82rem; margin: 0 0 8px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
   .subtitle { color: var(--muted); margin: 0 0 20px; }
   .panel {
     background: var(--panel);
@@ -114,8 +103,14 @@
   button:disabled { opacity: 0.4; cursor: default; }
   .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .field { margin-bottom: 12px; }
-  .field label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 4px; }
+  .field > label, .field > .label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 4px; }
   .hint { color: var(--muted); font-size: 0.82rem; margin: 4px 0 0; }
+
+  .segmented { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .segmented label { text-align: center; padding: 7px 6px; cursor: pointer; font-weight: 600; font-size: 0.9rem; }
+  .segmented input { position: absolute; opacity: 0; pointer-events: none; }
+  .segmented label:has(input:checked) { background: var(--accent); color: var(--accent-text); }
+  .segmented label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: -3px; }
 
   .errors {
     background: var(--danger-bg);
@@ -126,13 +121,6 @@
     margin-bottom: 16px;
   }
   .errors ul { margin: 6px 0 0; padding-left: 20px; }
-  .stale {
-    border: 1px dashed var(--accent);
-    color: var(--accent);
-    border-radius: 8px;
-    padding: 8px 12px;
-    margin-bottom: 16px;
-  }
   [hidden] { display: none !important; }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
@@ -165,6 +153,24 @@
     font-weight: 400;
     font-style: italic;
   }
+  .gantt-mask {
+    position: absolute;
+    top: -1px;
+    bottom: -1px;
+    right: -1px;
+    background: var(--panel);
+    opacity: 0.82;
+    border-left: 2px solid var(--accent);
+    transition: left 0.25s ease;
+  }
+  .gantt-mask::before {
+    content: "";
+    position: absolute;
+    left: -6px;
+    top: -7px;
+    border: 5px solid transparent;
+    border-top: 6px solid var(--accent);
+  }
   .tick {
     position: absolute;
     top: 0;
@@ -193,6 +199,65 @@
   .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 0.82rem; color: var(--muted); margin-top: 10px; }
   .swatch { display: inline-block; width: 12px; height: 12px; border: 1px solid var(--seg-edge); vertical-align: -2px; margin-right: 4px; }
 
+  /* Step-by-step player */
+  .player-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+  .clock { font-size: 1.7rem; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 6ch; }
+  .controls button { min-width: 42px; }
+  #pl-play { min-width: 96px; }
+  #pl-slider { width: 100%; margin: 12px 0 4px; accent-color: var(--accent); }
+  .step-info { display: flex; justify-content: space-between; color: var(--muted); font-size: 0.82rem; }
+  .event {
+    margin: 12px 0 14px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border-left: 4px solid var(--accent);
+    background: var(--row-hl);
+    min-height: 46px;
+  }
+  .kind { display: inline-block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; margin-right: 8px; color: var(--accent); }
+  .lanes { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1.2fr) minmax(0, 1fr); gap: 10px; }
+  @media (max-width: 860px) { .lanes { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+  @media (max-width: 520px) { .lanes { grid-template-columns: minmax(0, 1fr); } }
+  .lane { background: var(--lane); border: 1px solid var(--border); border-radius: 8px; padding: 10px; min-height: 120px; }
+  .lane .hint { margin: -4px 0 8px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .chip {
+    border: 1px solid var(--seg-edge);
+    border-radius: 7px;
+    padding: 3px 8px;
+    font-weight: 650;
+    font-size: 0.88rem;
+    line-height: 1.25;
+    color: var(--text);
+    background: hsl(var(--h) var(--seg-s) var(--seg-l));
+  }
+  .chip small { display: block; font-weight: 400; font-size: 0.72rem; opacity: 0.85; }
+  .chip.dim { opacity: 0.55; }
+  .chip.next { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .chip.flash { animation: flash 0.9s ease; }
+  @keyframes flash { 0% { box-shadow: 0 0 0 5px var(--ok); } 100% { box-shadow: 0 0 0 0 transparent; } }
+  .next-tag { display: block; font-size: 0.66rem; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.04em; }
+  .qarrow { color: var(--muted); font-size: 0.8rem; }
+  .qend { color: var(--muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  .empty { color: var(--muted); font-style: italic; font-size: 0.85rem; }
+  .cpu-card { border: 2px solid var(--seg-edge); border-radius: 10px; padding: 10px 12px; background: hsl(var(--h) var(--seg-s) var(--seg-l)); }
+  .cpu-card .pid { font-size: 1.4rem; font-weight: 750; }
+  .cpu-card .meta { font-size: 0.8rem; }
+  .bar { height: 8px; border-radius: 4px; background: rgba(127, 127, 127, 0.3); overflow: hidden; margin: 6px 0 4px; }
+  .bar > span { display: block; height: 100%; background: var(--text); opacity: 0.7; transition: width 0.25s ease; }
+  .cpu-idle {
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    padding: 14px 12px;
+    text-align: center;
+    color: var(--muted);
+    background: repeating-linear-gradient(45deg, var(--idle-a) 0 6px, var(--idle-b) 6px 12px);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .chip.flash { animation: none; }
+    .gantt-mask, .bar > span { transition: none; }
+  }
+
   .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
   .stat { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
   .stat .label { font-size: 0.8rem; color: var(--muted); }
@@ -203,6 +268,7 @@
   tfoot td { font-weight: 650; border-top: 2px solid var(--border); }
   tr.current td { background: var(--row-hl); }
   td.best { font-weight: 700; color: var(--ok); }
+  td.pending-cell { color: var(--muted); }
 
   .checks { list-style: none; padding: 0; margin: 0; }
   .checks li { padding: 4px 0; }
@@ -211,9 +277,12 @@
 
   details > summary { cursor: pointer; font-weight: 600; }
   details[open] > summary { margin-bottom: 10px; }
+  .trace-scroll { max-height: 380px; overflow: auto; position: relative; }
   .trace td:first-child { font-variant-numeric: tabular-nums; white-space: nowrap; }
   .trace .q { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.82rem; color: var(--muted); }
-  .badge { display: inline-block; font-size: 0.72rem; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+  .trace tr.future td { opacity: 0.4; }
+  .trace tr.current td { background: var(--row-hl); font-weight: 600; }
+  .badge { display: inline-block; font-size: 0.72rem; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); font-weight: 500; }
   footer { color: var(--muted); font-size: 0.82rem; margin-top: 24px; }
 </style>
 </head>
@@ -237,11 +306,19 @@
         <button id="add-btn" type="button">+ Add process</button>
         <button id="clear-btn" type="button">Remove all</button>
       </div>
-      <p class="hint">Input order matters: it is the final tie-breaker (after arrival time). Use ↑ ↓ to reorder.</p>
+      <p class="hint">Input order matters: it is the final tie-breaker (after arrival time). Use ↑ ↓ to reorder. Results update as you type.</p>
     </section>
 
     <section class="panel" aria-labelledby="ctl-h">
       <h2 id="ctl-h">Simulation</h2>
+      <div class="field">
+        <span class="label" id="mode-label">Mode</span>
+        <div class="segmented" role="radiogroup" aria-labelledby="mode-label">
+          <label><input type="radio" name="mode" value="fast" checked> Fast run</label>
+          <label><input type="radio" name="mode" value="sim"> Simulate</label>
+        </div>
+        <p class="hint" id="mode-hint"></p>
+      </div>
       <div class="field">
         <label for="algo">Algorithm</label>
         <select id="algo">
@@ -254,10 +331,9 @@
       <div class="field">
         <label for="quantum">Round-robin time quantum</label>
         <input id="quantum" type="text" inputmode="numeric" value="2" autocomplete="off">
-        <p class="hint" id="quantum-hint">Used only by Round Robin.</p>
+        <p class="hint" id="quantum-hint"></p>
       </div>
-      <button id="run-btn" type="button" class="primary" style="width:100%">Run simulation</button>
-      <div class="field" style="margin-top:16px">
+      <div class="field" style="margin-bottom:0">
         <label for="preset">Example workloads</label>
         <div class="row" style="flex-wrap:nowrap">
           <select id="preset"></select>
@@ -268,9 +344,39 @@
   </div>
 
   <div id="errors" class="errors" role="alert" hidden></div>
-  <div id="stale" class="stale" hidden>Inputs changed — press <strong>Run simulation</strong> to update the results.</div>
 
   <div id="results" hidden>
+    <section class="panel" id="player" aria-labelledby="player-h" hidden>
+      <h2 id="player-h" class="sr">Step-by-step simulation</h2>
+      <div class="player-head">
+        <div class="clock" aria-live="polite">t = <span id="clock">0</span></div>
+        <div class="row controls">
+          <button type="button" id="pl-first" title="Go to start (Home)" aria-label="Go to start">⏮</button>
+          <button type="button" id="pl-prev" title="Previous step (←)" aria-label="Previous step">◀</button>
+          <button type="button" id="pl-play" class="primary" title="Play / pause (Space)">▶ Play</button>
+          <button type="button" id="pl-next" title="Next step (→)" aria-label="Next step">▶|</button>
+          <button type="button" id="pl-last" title="Go to end (End)" aria-label="Go to end">⏭</button>
+          <label class="row" style="gap:4px">Speed
+            <select id="pl-speed" style="width:auto">
+              <option value="0.5">0.5×</option>
+              <option value="1" selected>1×</option>
+              <option value="2">2×</option>
+              <option value="4">4×</option>
+            </select>
+          </label>
+        </div>
+      </div>
+      <input type="range" id="pl-slider" min="0" max="0" value="0" aria-label="Simulation step">
+      <div class="step-info"><span id="pl-step"></span><span>Keys: Space play/pause · ← → step</span></div>
+      <div class="event" id="pl-event" aria-live="polite"></div>
+      <div class="lanes">
+        <div class="lane"><h3>Not yet arrived</h3><div class="chips" id="lane-pending"></div></div>
+        <div class="lane"><h3 id="ready-title">Ready queue</h3><p class="hint" id="ready-hint"></p><div class="chips" id="lane-ready"></div></div>
+        <div class="lane"><h3>CPU</h3><div id="lane-cpu"></div></div>
+        <div class="lane"><h3>Completed</h3><div class="chips" id="lane-done"></div></div>
+      </div>
+    </section>
+
     <section class="panel" aria-labelledby="gantt-h">
       <h2 id="gantt-h">Gantt chart <span class="badge" id="gantt-algo"></span></h2>
       <div class="gantt-scroll"><div class="gantt" id="gantt"></div></div>
@@ -278,7 +384,7 @@
     </section>
 
     <section class="panel" aria-labelledby="metrics-h">
-      <h2 id="metrics-h">Results</h2>
+      <h2 id="metrics-h">Results <span class="badge" id="results-badge" hidden></span></h2>
       <div class="stats" id="stats"></div>
       <div class="table-scroll">
         <table id="results-table">
@@ -293,6 +399,15 @@
         </table>
       </div>
       <p class="hint">Turnaround = Completion − Arrival · Waiting = Turnaround − Burst · Response = First start − Arrival</p>
+    </section>
+
+    <section class="panel">
+      <details id="trace-details">
+        <summary>Decision trace — every arrival, dispatch, preemption and completion</summary>
+        <div class="trace-scroll" id="trace-scroll">
+          <table class="trace"><thead><tr><th>Time</th><th>Event</th><th>Ready queue after the event</th></tr></thead><tbody id="trace"></tbody></table>
+        </div>
+      </details>
     </section>
 
     <section class="panel" aria-labelledby="checks-h">
@@ -310,21 +425,12 @@
       </div>
       <p class="hint">Best value in each column is highlighted. The selected algorithm's row is shaded.</p>
     </section>
-
-    <section class="panel">
-      <details id="trace-details">
-        <summary>Decision trace — every arrival, dispatch, preemption and completion</summary>
-        <div class="table-scroll">
-          <table class="trace"><thead><tr><th>Time</th><th>Event</th><th>Ready queue after event</th></tr></thead><tbody id="trace"></tbody></table>
-        </div>
-      </details>
-    </section>
   </div>
 
   <section class="panel">
     <details id="selftest-details">
       <summary>Built-in self-tests <span id="selftest-summary" class="badge"></span></summary>
-      <p class="hint">Each test runs the engine on a fixed workload and compares the timeline and averages with hand-calculated expectations. Every simulation is also checked against the correctness properties above.</p>
+      <p class="hint">Each test runs the engine on a fixed workload and compares the timeline and averages with hand-calculated expectations. Every simulation is also checked against the correctness properties, including that every step of the step-by-step view agrees with the timeline.</p>
       <div class="table-scroll"><table><thead><tr><th>Test</th><th>Result</th><th>Details</th></tr></thead><tbody id="selftests"></tbody></table></div>
     </details>
   </section>
@@ -406,8 +512,10 @@ function validateInput(rows, algorithm, quantumText) {
 }
 
 // Simulates one algorithm. processes: [{ id, arrival, burst }] in input order (validated).
-// Returns { segments, results, averages, trace, algorithm, quantum }.
+// Returns { segments, results, totals, averages, trace, algorithm, quantum }.
 // A segment is { pid, start, end } with pid === null for CPU idle; RR segments also carry `slice`.
+// Every trace entry records the full system state right after the event, which the step-by-step
+// view displays as-is.
 function simulate(processes, algorithm, quantum) {
   if (!ALGORITHM_NAMES[algorithm]) throw new Error(`Unknown algorithm ${algorithm}`);
   if (algorithm === "RR" && !(Number.isInteger(quantum) && quantum > 0)) throw new Error("RR needs a positive integer quantum");
@@ -424,20 +532,25 @@ function simulate(processes, algorithm, quantum) {
   let t = 0;
   let nextArrival = 0;
   let finished = 0;
+  let running = null;
 
   // Tie-breaking (assignment §2): earlier arrival, then earlier position in the input list.
   const tieBreak = (x, y) => x.arrival - y.arrival || x.index - y.index;
   const byArrival = tieBreak;
   const byBurst = (x, y) => x.burst - y.burst || tieBreak(x, y);
   const byRemaining = (x, y) => x.remaining - y.remaining || tieBreak(x, y);
+  // How the ready set is ordered for selection; RR keeps its FIFO order.
+  const selectionOrder = { FCFS: byArrival, SJF: byBurst, SRTF: byRemaining, RR: null }[algorithm];
 
-  const describe = (p) => {
-    if (algorithm === "SJF") return `${p.id}(burst ${p.burst})`;
-    if (algorithm === "FCFS") return `${p.id}(arr ${p.arrival})`;
-    return `${p.id}(rem ${p.remaining})`;
-  };
-  const snapshot = () => ready.map(describe).join(", ") || "—";
-  const log = (event) => trace.push({ time: t, event, queue: snapshot() });
+  const view = (p) => ({ id: p.id, remaining: p.remaining });
+  const snapshot = () => ({
+    running: running ? view(running) : null,
+    ready: (selectionOrder ? ready.slice().sort(selectionOrder) : ready).map(view),
+    pending: pending.slice(nextArrival).map((p) => p.id),
+    done: procs.filter((p) => p.completion !== null).map((p) => p.id),
+  });
+  const log = (kind, event) => trace.push({ time: t, kind, event, state: snapshot() });
+  const upcomingArrival = () => (nextArrival < pending.length ? pending[nextArrival].arrival : Infinity);
 
   // Moves every process with arrival <= time into the ready queue (tail), in arrival/input order.
   const admit = (time) => {
@@ -448,24 +561,26 @@ function simulate(processes, algorithm, quantum) {
       arrived.push(p);
     }
     if (arrived.length) {
-      const at = arrived[0].arrival === arrived[arrived.length - 1].arrival ? `at ${arrived[0].arrival}` : `by ${time}`;
-      log(`${arrived.map((p) => p.id).join(", ")} arrive${arrived.length === 1 ? "s" : ""} ${at} and join${arrived.length === 1 ? "s" : ""} the ready queue.`);
+      const one = arrived.length === 1;
+      const where = algorithm === "RR" ? "the tail of the ready queue" : "the ready queue";
+      log("arrival", `${arrived.map((p) => p.id).join(", ")} arrive${one ? "s" : ""} and join${one ? "s" : ""} ${where}.`);
     }
     return arrived;
   };
   const idle = () => {
-    const until = pending[nextArrival].arrival;
+    const until = upcomingArrival();
     segments.push({ pid: null, start: t, end: until });
-    log(`Ready queue is empty: CPU idle until the next arrival at ${until}.`);
+    log("idle", `Ready queue is empty: CPU idle until the next arrival at ${until}.`);
     t = until;
   };
-  // Runs p from t to end. Merges with the previous segment when the same process simply continues
-  // (SRTF across a non-preempting arrival); RR slices are never merged.
+  // Gives p the CPU from t to end. Contiguous pieces of one run are merged into one segment;
+  // RR slices are kept apart by their slice number.
   const run = (p, end, extra) => {
     if (p.firstStart === null) p.firstStart = t;
     p.remaining -= end - t;
     const last = segments[segments.length - 1];
-    if (!extra && last && last.pid === p.id && last.end === t) last.end = end;
+    const sameSlice = !extra || (last && last.slice === extra.slice);
+    if (last && last.pid === p.id && last.end === t && sameSlice) last.end = end;
     else segments.push(Object.assign({ pid: p.id, start: t, end }, extra || {}));
     t = end;
     if (p.remaining === 0) {
@@ -473,47 +588,56 @@ function simulate(processes, algorithm, quantum) {
       finished++;
     }
   };
+  // Like run(), but stops at every arrival inside (t, end) so it joins the queue at its real time.
+  // Arrivals exactly at `end` are left to the caller.
+  const runUntil = (p, end, extra) => {
+    for (;;) {
+      const stop = Math.min(end, upcomingArrival());
+      run(p, stop, extra);
+      if (stop === end) return;
+      admit(t);
+    }
+  };
 
   if (algorithm === "FCFS" || algorithm === "SJF") {
-    const order = algorithm === "FCFS" ? byArrival : byBurst;
     while (finished < procs.length) {
       admit(t);
       if (ready.length === 0) { idle(); continue; }
-      ready.sort(order);
+      ready.sort(selectionOrder);
       const p = ready.shift();
       const why = ready.length === 0 ? "the only ready process"
-        : algorithm === "FCFS" ? `earliest arrival (${p.arrival})` : `shortest burst (${p.burst})`;
-      log(`CPU free: dispatch ${p.id} — ${why}. Runs to completion at ${t + p.remaining}.`);
-      run(p, t + p.remaining);
-      log(`${p.id} completes.`);
+        : algorithm === "FCFS" ? `earliest arrival (${p.arrival})` : `shortest CPU burst (${p.burst})`;
+      running = p;
+      log("dispatch", `CPU free: dispatch ${p.id} — ${why}. Non-preemptive: it keeps the CPU until ${t + p.remaining}.`);
+      runUntil(p, t + p.remaining);
+      running = null;
+      log("complete", `${p.id} completes.`);
     }
   } else if (algorithm === "SRTF") {
-    let current = null;
     while (finished < procs.length) {
       const arrived = admit(t);
-      if (current === null && ready.length === 0) { idle(); continue; }
+      if (running === null && ready.length === 0) { idle(); continue; }
       ready.sort(byRemaining);
-      if (current === null) {
-        current = ready.shift();
-        const why = ready.length === 0 ? "the only ready process" : `shortest remaining time (${current.remaining})`;
-        log(`CPU free: dispatch ${current.id} — ${why}.`);
-      } else if (ready.length && ready[0].remaining < current.remaining) {
-        const next = ready.shift();
-        log(`Preempt ${current.id} (rem ${current.remaining}): ${next.id} has strictly shorter remaining time (${next.remaining}).`);
-        ready.push(current);
-        ready.sort(byRemaining);
-        current = next;
-        trace[trace.length - 1].queue = snapshot();
+      if (running === null) {
+        running = ready.shift();
+        const why = ready.length === 0 ? "the only ready process" : `shortest remaining time (${running.remaining})`;
+        log("dispatch", `CPU free: dispatch ${running.id} — ${why}.`);
+      } else if (ready.length && ready[0].remaining < running.remaining) {
+        const preempted = running;
+        running = ready.shift();
+        ready.push(preempted);
+        log("preempt", `Preempt ${preempted.id} (rem ${preempted.remaining}): ${running.id} has a strictly shorter remaining time (${running.remaining}) and takes the CPU.`);
       } else if (arrived.length) {
         const best = ready[0];
-        const rel = best.remaining === current.remaining ? "equal" : "longer";
-        log(`No preemption: ${current.id} keeps the CPU (rem ${current.remaining}); best waiting ${best.id} has ${rel} remaining time (${best.remaining}).`);
+        const rel = best.remaining === running.remaining ? "an equal" : "a longer";
+        log("keep", `No preemption: ${running.id} keeps the CPU (rem ${running.remaining}); the best waiting process ${best.id} has ${rel} remaining time (${best.remaining}).`);
       }
-      const upcoming = nextArrival < pending.length ? pending[nextArrival].arrival : Infinity;
-      run(current, Math.min(t + current.remaining, upcoming));
-      if (current.remaining === 0) {
-        log(`${current.id} completes.`);
-        current = null;
+      // Run until completion or the next arrival, whichever comes first, then decide again.
+      run(running, Math.min(t + running.remaining, upcomingArrival()));
+      if (running.remaining === 0) {
+        const p = running;
+        running = null;
+        log("complete", `${p.id} completes.`);
       }
     }
   } else {
@@ -524,17 +648,20 @@ function simulate(processes, algorithm, quantum) {
       const p = ready.shift();
       const length = Math.min(quantum, p.remaining);
       p.slices++;
-      log(`Dispatch ${p.id} from the queue head for ${length} unit${length === 1 ? "" : "s"} (slice #${p.slices}, rem ${p.remaining}).`);
-      run(p, t + length, { slice: p.slices });
-      // Arrivals up to and including this boundary join the queue before the preempted process.
+      running = p;
+      const shortSlice = length < quantum ? ` — it needs only ${length} of the quantum ${quantum}` : "";
+      log("dispatch", `Dispatch ${p.id} from the head of the queue: slice #${p.slices}, ${length} unit${length === 1 ? "" : "s"} (${t}–${t + length})${shortSlice}.`);
+      runUntil(p, t + length, { slice: p.slices });
       if (p.remaining === 0) {
-        log(`${p.id} completes and leaves the system.`);
-        admit(t);
+        running = null;
+        log("complete", `${p.id} completes and leaves the system (it never rejoins the queue).`);
       } else {
-        log(`Quantum expires: ${p.id} has ${p.remaining} left.`);
-        admit(t);
+        log("expire", `Quantum expires: ${p.id} still needs ${p.remaining}. Arrivals at ${t} join the queue first.`);
+        const arrived = admit(t);
         ready.push(p);
-        log(`${p.id} is re-enqueued at the tail.`);
+        running = null;
+        const behind = arrived.length ? `, behind ${arrived.map((x) => x.id).join(", ")} that arrived at ${t}` : "";
+        log("requeue", `${p.id} rejoins the tail of the queue${behind}.`);
       }
     }
   }
@@ -553,12 +680,96 @@ function simulate(processes, algorithm, quantum) {
   return { algorithm, quantum: algorithm === "RR" ? quantum : null, segments, results, totals, averages, trace };
 }
 
-// Checks the properties required in assignment §5. Returns [{ name, pass, detail }].
+// CPU time process `id` received before time t, read from the timeline.
+function executedBefore(segments, id, t) {
+  return segments.reduce((acc, s) => (s.pid === id && s.start < t ? acc + Math.min(s.end, t) - s.start : acc), 0);
+}
+
+// Steps for the step-by-step view: a start step, one step per trace event, and one "tick" step
+// for every time unit in which nothing happens (the running process just keeps running).
+function buildFrames(processes, sim) {
+  const end = sim.segments[sim.segments.length - 1].end;
+  const byArrivalThenInput = processes.map((p, i) => ({ p, i })).sort((x, y) => x.p.arrival - y.p.arrival || x.i - y.i);
+  const frames = [{
+    time: 0, kind: "start", traceIndex: -1,
+    event: "Simulation starts. No process has joined the ready queue yet.",
+    state: { running: null, ready: [], pending: byArrivalThenInput.map((x) => x.p.id), done: [] },
+  }];
+  const burst = new Map(processes.map((p) => [p.id, p.burst]));
+  let ti = 0;
+  for (let t = 0; t <= end; t++) {
+    let any = false;
+    while (ti < sim.trace.length && sim.trace[ti].time === t) {
+      const e = sim.trace[ti];
+      frames.push({ time: t, kind: e.kind, traceIndex: ti, event: e.event, state: e.state });
+      ti++;
+      any = true;
+    }
+    if (!any && t < end) {
+      const prev = frames[frames.length - 1].state;
+      let running = null;
+      let event = "CPU idle: waiting for the next arrival.";
+      if (prev.running) {
+        const remaining = burst.get(prev.running.id) - executedBefore(sim.segments, prev.running.id, t);
+        running = { id: prev.running.id, remaining };
+        event = `${running.id} keeps running (${remaining} left). No arrival, completion or quantum boundary at ${t}.`;
+      }
+      frames.push({ time: t, kind: "tick", traceIndex: -1, event, state: Object.assign({}, prev, { running }) });
+    }
+  }
+  return frames;
+}
+
+// Cross-checks every step of the step-by-step view against the timeline (segments) and results.
+// Returns a list of problems (empty when consistent).
+function checkFrames(processes, sim, frames) {
+  const problems = [];
+  const info = new Map(processes.map((p) => [p.id, p]));
+  const completion = new Map(sim.results.map((r) => [r.id, r.completion]));
+  const end = sim.segments[sim.segments.length - 1].end;
+  frames.forEach((f, i) => {
+    const s = f.state;
+    const where = `Step ${i} (t=${f.time}, ${f.kind})`;
+    const active = s.running ? [s.running].concat(s.ready) : s.ready;
+    const ids = active.map((x) => x.id).concat(s.pending, s.done);
+    if (ids.length !== processes.length || new Set(ids).size !== processes.length) {
+      problems.push(`${where}: processes are not split exactly once into not-arrived / ready / CPU / completed.`);
+    }
+    s.pending.forEach((id) => { if (info.get(id).arrival < f.time) problems.push(`${where}: ${id} is still shown as not arrived.`); });
+    active.forEach((x) => {
+      if (info.get(x.id).arrival > f.time) problems.push(`${where}: ${x.id} is shown before its arrival.`);
+      const expected = info.get(x.id).burst - executedBefore(sim.segments, x.id, f.time);
+      if (x.remaining !== expected) problems.push(`${where}: ${x.id} shows ${x.remaining} remaining; the timeline gives ${expected}.`);
+    });
+    s.done.forEach((id) => { if (completion.get(id) > f.time) problems.push(`${where}: ${id} is shown as completed before ${completion.get(id)}.`); });
+    // After the last event at time t, the CPU must show exactly what the timeline runs in [t, t+1).
+    const lastAtThisTime = i === frames.length - 1 || frames[i + 1].time !== f.time;
+    if (lastAtThisTime) {
+      s.pending.forEach((id) => { if (info.get(id).arrival <= f.time) problems.push(`${where}: ${id} has arrived but is not in the ready queue.`); });
+      const seg = sim.segments.find((g) => g.start <= f.time && f.time < g.end);
+      const expected = seg ? seg.pid : null;
+      const shown = s.running ? s.running.id : null;
+      if (shown !== expected) problems.push(`${where}: the CPU shows ${shown || "idle"}, the timeline has ${expected || "idle"}.`);
+    }
+    // A dispatched process must be the one the previous step showed first in the ready queue.
+    if ((f.kind === "dispatch" || f.kind === "preempt") && i > 0) {
+      const head = frames[i - 1].state.ready[0];
+      if (!s.running || !head || head.id !== s.running.id) {
+        problems.push(`${where}: dispatched ${s.running ? s.running.id : "nothing"}, but the ready queue head was ${head ? head.id : "empty"}.`);
+      }
+    }
+  });
+  const last = frames[frames.length - 1];
+  if (last.time !== end || last.state.done.length !== processes.length) problems.push("The final step does not show every process completed at the end of the timeline.");
+  return problems;
+}
+
+// Checks the properties required in assignment §5 plus step-view consistency. Returns [{ name, pass, detail }].
 function verifySchedule(processes, sim) {
   const checks = [];
   const segs = sim.segments;
   const byId = new Map(sim.results.map((r) => [r.id, r]));
-  const add = (name, problems) => checks.push({ name, pass: problems.length === 0, detail: problems.join(" ") });
+  const add = (name, problems) => checks.push({ name, pass: problems.length === 0, detail: problems.slice(0, 3).join(" ") });
 
   const cpu = new Map(processes.map((p) => [p.id, 0]));
   segs.forEach((s) => { if (s.pid !== null) cpu.set(s.pid, cpu.get(s.pid) + (s.end - s.start)); });
@@ -587,6 +798,9 @@ function verifySchedule(processes, sim) {
     });
   });
   add("The CPU is never idle while a process is ready", idleProblems);
+
+  add("Every step of the step-by-step view and decision trace agrees with the timeline",
+    checkFrames(processes, sim, buildFrames(processes, sim)));
   return checks;
 }
 
@@ -627,6 +841,8 @@ const SELF_TESTS = [
   { name: "Lecture 2 slides 28–29 · SRTF", w: "L3", algo: "SRTF", gantt: "P1 0-1 | P2 1-5 | P4 5-10 | P1 10-17 | P3 17-26", avg: [13, 6.5, 4.25] },
   { name: "RR: arrival at a boundary joins before the preempted process", algo: "RR", q: 2,
     procs: [{ id: "P1", arrival: 0, burst: 3 }, { id: "P2", arrival: 2, burst: 2 }], gantt: "P1 0-2 | P2 2-4 | P1 4-5" },
+  { name: "RR: arrival inside a slice joins before the preempted process", algo: "RR", q: 4,
+    procs: [{ id: "P1", arrival: 0, burst: 6 }, { id: "P2", arrival: 1, burst: 2 }], gantt: "P1 0-4 | P2 4-6 | P1 6-8" },
   { name: "SRTF: equal remaining time does not preempt", algo: "SRTF",
     procs: [{ id: "P1", arrival: 0, burst: 4 }, { id: "P2", arrival: 1, burst: 3 }], gantt: "P1 0-4 | P2 4-7" },
   { name: "SRTF: strictly shorter remaining time preempts", algo: "SRTF",
@@ -671,6 +887,17 @@ function runSelfTests() {
     verifySchedule(procs, sim).filter((c) => !c.pass).forEach((c) => problems.push(`${c.name}: ${c.detail}`));
     out.push({ name: tc.name, pass: problems.length === 0, detail: problems.join(" ") || `${got}` });
   });
+  // Step-view consistency on every example workload × algorithm, including RR quanta 1–4.
+  Object.entries(WORKLOADS).forEach(([key, w]) => {
+    const configs = [["FCFS"], ["SJF"], ["SRTF"], ["RR", 1], ["RR", 2], ["RR", 3], ["RR", 4]];
+    const problems = [];
+    configs.forEach(([a, q]) => {
+      const sim = simulate(w.processes, a, q || null);
+      checkFrames(w.processes, sim, buildFrames(w.processes, sim)).slice(0, 2)
+        .forEach((p) => problems.push(`${a}${q ? ` q=${q}` : ""}: ${p}`));
+    });
+    out.push({ name: `Step view ↔ timeline · ${w.label} (7 configurations)`, pass: problems.length === 0, detail: problems.join(" ") || "All steps consistent." });
+  });
   VALIDATION_TESTS.forEach((tc) => {
     const v = validateInput(tc.rows, tc.algo, tc.quantum || "2");
     const msgs = v.errors.map((e) => e.message).join(" ");
@@ -688,12 +915,38 @@ function runSelfTests() {
 const $ = (sel) => document.querySelector(sel);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const hue = (index) => Math.round((index * 137.508 + 210) % 360);
+const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-const state = { rows: [], lastRun: null };
+const KIND_LABELS = {
+  start: "Start", arrival: "Arrival", dispatch: "Dispatch", preempt: "Preemption", keep: "No preemption",
+  complete: "Completion", expire: "Quantum expired", requeue: "Re-enqueue", idle: "CPU idle", tick: "Running",
+};
+const READY_HINTS = {
+  FCFS: "Ordered by arrival time, then input order. The first one is dispatched when the CPU becomes free.",
+  SJF: "Ordered by CPU burst (ties: arrival, then input order). The first one is dispatched when the CPU becomes free.",
+  SRTF: "Ordered by remaining time (ties: arrival, then input order). The first one preempts the CPU only if strictly shorter.",
+  RR: "FIFO: head on the left, tail on the right. Arrivals at a quantum boundary join before the preempted process.",
+};
 
+const state = {
+  rows: [],
+  mode: "fast",
+  current: null, // { processes, sim, frames, colorOf, info }
+  index: 0,
+  playing: false,
+  timer: null,
+};
+
+function readSavedMode() {
+  try { return localStorage.getItem("cpu-sim-mode") === "sim" ? "sim" : "fast"; } catch (e) { return "fast"; }
+}
+function saveMode(mode) {
+  try { localStorage.setItem("cpu-sim-mode", mode); } catch (e) { /* storage unavailable: keep the default */ }
+}
+
+// ----- Process table -----
 function renderRows() {
-  const body = $("#process-rows");
-  body.innerHTML = state.rows.map((r, i) => `
+  $("#process-rows").innerHTML = state.rows.map((r, i) => `
     <tr>
       <td class="idx">${i + 1}</td>
       <td><input type="text" data-i="${i}" data-f="id" value="${esc(r.id)}" aria-label="Process ${i + 1} ID" autocomplete="off"></td>
@@ -712,11 +965,7 @@ function loadWorkload(key) {
   state.rows = w.processes.map((p) => ({ id: p.id, arrival: String(p.arrival), burst: String(p.burst) }));
   $("#quantum").value = String(w.quantum);
   renderRows();
-  run();
-}
-
-function markStale() {
-  if (state.lastRun) $("#stale").hidden = false;
+  update();
 }
 
 function nextFreeId() {
@@ -735,37 +984,71 @@ function showErrors(errors) {
       : e.row ? document.querySelector(`#process-rows input[data-i="${e.row - 1}"][data-f="${e.field}"]`) : null;
     if (el) el.setAttribute("aria-invalid", "true");
   });
-  box.innerHTML = `<strong>The simulation was not run — please fix ${errors.length === 1 ? "this problem" : `these ${errors.length} problems`}:</strong>
+  box.innerHTML = `<strong>The simulation cannot run — please fix ${errors.length === 1 ? "this problem" : `these ${errors.length} problems`}:</strong>
     <ul>${errors.map((e) => `<li>${esc(e.message)}</li>`).join("")}</ul>`;
   box.hidden = false;
 }
 
-function run() {
+// ----- Main update: validate, simulate, render -----
+let updateTimer = null;
+function scheduleUpdate() {
+  clearTimeout(updateTimer);
+  updateTimer = setTimeout(update, 250);
+}
+
+function update() {
+  clearTimeout(updateTimer);
+  pause();
   const algo = $("#algo").value;
   const v = validateInput(state.rows, algo, $("#quantum").value);
   showErrors(v.errors);
-  $("#stale").hidden = true;
   if (v.errors.length) {
     $("#results").hidden = true;
-    state.lastRun = null;
-    $("#errors").scrollIntoView({ block: "nearest" });
+    state.current = null;
     return;
   }
   const sim = simulate(v.processes, algo, v.quantum);
-  state.lastRun = { processes: v.processes, sim };
+  state.current = {
+    processes: v.processes,
+    sim,
+    frames: buildFrames(v.processes, sim),
+    colorOf: new Map(v.processes.map((p, i) => [p.id, hue(i)])),
+    info: new Map(v.processes.map((p) => [p.id, p])),
+  };
   $("#results").hidden = false;
-  renderGantt(v.processes, sim);
-  renderResults(sim);
+  renderGantt();
+  renderTrace();
   renderChecks(verifySchedule(v.processes, sim));
   renderCompare(v.processes, algo, v.quantum);
-  renderTrace(sim);
+  applyMode();
 }
 
-function renderGantt(processes, sim) {
+function applyMode() {
+  const sim = state.mode === "sim";
+  $("#mode-hint").textContent = sim
+    ? "Step through the schedule: pause at any moment to see the CPU, the ready queue and who comes next."
+    : "Results are computed instantly and update whenever you change an input.";
+  if (!state.current) return;
+  $("#player").hidden = !sim;
+  if (sim) {
+    const n = state.current.frames.length;
+    $("#pl-slider").max = String(n - 1);
+    $("#ready-title").textContent = state.current.sim.algorithm === "RR" ? "Ready queue (FIFO)" : "Ready queue";
+    $("#ready-hint").textContent = READY_HINTS[state.current.sim.algorithm];
+    showFrame(0, false);
+  } else {
+    setGanttCursor(null);
+    renderResults(null);
+    markTrace(-1);
+  }
+}
+
+// ----- Gantt -----
+function renderGantt() {
+  const { processes, sim, colorOf } = state.current;
   const segs = sim.segments;
   const total = segs[segs.length - 1].end;
   const pct = (x) => `${(x / total) * 100}%`;
-  const colorOf = new Map(processes.map((p, i) => [p.id, hue(i)]));
   const isRR = sim.algorithm === "RR";
 
   const arrivals = new Map();
@@ -790,7 +1073,7 @@ function renderGantt(processes, sim) {
   g.style.minWidth = `${Math.min(total * 34, 20000)}px`;
   g.innerHTML = `
     <div class="gantt-arrivals" style="height:${maxStack * 14 + 18}px">${arrivalsHtml}</div>
-    <div class="gantt-bars">${segHtml}</div>
+    <div class="gantt-bars">${segHtml}<div class="gantt-mask" id="gantt-mask" hidden></div></div>
     <div class="gantt-ticks">${tickHtml}</div>`;
   $("#gantt-algo").textContent = sim.algorithm + (isRR ? ` · q = ${sim.quantum}` : "");
   $("#gantt-legend").innerHTML = processes.map((p) =>
@@ -800,16 +1083,49 @@ function renderGantt(processes, sim) {
     + (isRR ? `<span>Every block is one time slice; a border separates consecutive slices of the same process.</span>` : "");
 }
 
-function renderResults(sim) {
+// Hides the part of the Gantt chart after time t (null shows everything).
+function setGanttCursor(t) {
+  const mask = $("#gantt-mask");
+  if (!mask) return;
+  if (t === null) { mask.hidden = true; return; }
+  const segs = state.current.sim.segments;
+  const total = segs[segs.length - 1].end;
+  mask.hidden = false;
+  mask.style.left = `${(t / total) * 100}%`;
+}
+
+// ----- Results table (full, or as known at step `frame`) -----
+function renderResults(frame) {
+  const { sim, frames } = state.current;
   const n = sim.results.length;
+  let started = null;
+  let done = null;
+  if (frame) {
+    started = new Set();
+    for (let i = 0; i <= state.index; i++) {
+      const r = frames[i].state.running;
+      if (r) started.add(r.id);
+    }
+    frames[state.index].state.done.forEach((id) => started.add(id));
+    done = new Set(frame.state.done);
+  }
+  const finished = !frame || done.size === n;
   const card = (label, key) => `<div class="stat"><div class="label">Average ${label}</div>
-    <div class="value">${fmt(sim.averages[key])}</div><div class="frac">${sim.totals[key]} / ${n}</div></div>`;
+    <div class="value">${finished ? fmt(sim.averages[key]) : "—"}</div>
+    <div class="frac">${finished ? `${sim.totals[key]} / ${n}` : `${done.size} of ${n} completed`}</div></div>`;
   $("#stats").innerHTML = card("turnaround", "turnaround") + card("waiting", "waiting") + card("response", "response");
-  $("#results-table tbody").innerHTML = sim.results.map((r) => `<tr>
-    <td>${esc(r.id)}</td><td class="num">${r.arrival}</td><td class="num">${r.burst}</td><td class="num">${r.firstStart}</td>
-    <td class="num">${r.completion}</td><td class="num">${r.turnaround}</td><td class="num">${r.waiting}</td><td class="num">${r.response}</td></tr>`).join("");
+  const cell = (show, value) => (show ? `<td class="num">${value}</td>` : `<td class="num pending-cell">—</td>`);
+  $("#results-table tbody").innerHTML = sim.results.map((r) => {
+    const s = !frame || started.has(r.id);
+    const d = !frame || done.has(r.id);
+    return `<tr><td>${esc(r.id)}</td><td class="num">${r.arrival}</td><td class="num">${r.burst}</td>
+      ${cell(s, r.firstStart)}${cell(d, r.completion)}${cell(d, r.turnaround)}${cell(d, r.waiting)}${cell(s, r.response)}</tr>`;
+  }).join("");
   $("#results-table tfoot").innerHTML = `<tr><td colspan="5">Average</td>
-    <td class="num">${fmt(sim.averages.turnaround)}</td><td class="num">${fmt(sim.averages.waiting)}</td><td class="num">${fmt(sim.averages.response)}</td></tr>`;
+    ${cell(finished, fmt(sim.averages.turnaround))}${cell(finished, fmt(sim.averages.waiting))}${cell(finished, fmt(sim.averages.response))}</tr>`;
+  const badge = $("#results-badge");
+  badge.hidden = finished;
+  badge.textContent = finished ? "" : `as of t = ${frame.time}`;
 }
 
 function renderChecks(checks) {
@@ -836,11 +1152,185 @@ function renderCompare(processes, algo, quantum) {
   }).join("");
 }
 
-function renderTrace(sim) {
-  $("#trace").innerHTML = sim.trace.map((e) =>
-    `<tr><td>t = ${e.time}</td><td>${esc(e.event)}</td><td class="q">${esc(e.queue)}</td></tr>`).join("");
+// ----- Decision trace -----
+function queueText(stateObj) {
+  const { sim, info } = state.current;
+  const label = (x) => {
+    if (sim.algorithm === "FCFS") return `${x.id}(arr ${info.get(x.id).arrival})`;
+    if (sim.algorithm === "SJF") return `${x.id}(burst ${info.get(x.id).burst})`;
+    return `${x.id}(rem ${x.remaining})`;
+  };
+  return stateObj.ready.map(label).join(", ") || "—";
 }
 
+function renderTrace() {
+  $("#trace").innerHTML = state.current.sim.trace.map((e, i) =>
+    `<tr data-ti="${i}"><td>t = ${e.time}</td><td>${esc(e.event)}</td><td class="q">${esc(queueText(e.state))}</td></tr>`).join("");
+}
+
+// Highlights trace row `ti` and fades the rows that have not happened yet (-1 clears).
+function markTrace(ti, upTo) {
+  const rows = document.querySelectorAll("#trace tr");
+  rows.forEach((tr, i) => {
+    tr.classList.toggle("current", i === ti);
+    tr.classList.toggle("future", upTo !== undefined && i > upTo);
+  });
+  if (ti >= 0 && $("#trace-details").open) {
+    const box = $("#trace-scroll");
+    const row = rows[ti];
+    box.scrollTop = row.offsetTop - box.clientHeight / 2;
+  }
+}
+
+// ----- Step-by-step player -----
+function chip(id, sub, extraClass) {
+  const h = state.current.colorOf.get(id);
+  const tag = /\bnext\b/.test(extraClass || "") ? `<span class="next-tag">next</span>` : "";
+  return `<div class="chip ${extraClass || ""}" data-pid="${esc(id)}" style="--h:${h}">${tag}${esc(id)}${sub ? `<small>${sub}</small>` : ""}</div>`;
+}
+
+function showFrame(i, animate) {
+  const cur = state.current;
+  const frames = cur.frames;
+  state.index = Math.max(0, Math.min(i, frames.length - 1));
+  const f = frames[state.index];
+  const prev = state.index > 0 ? frames[state.index - 1] : null;
+  const { sim, info } = cur;
+  const s = f.state;
+
+  $("#clock").textContent = f.time;
+  $("#pl-slider").value = String(state.index);
+  $("#pl-step").textContent = `Step ${state.index + 1} of ${frames.length}`;
+  $("#pl-event").innerHTML = `<span class="kind">${KIND_LABELS[f.kind] || f.kind}</span>${esc(f.event)}`;
+
+  const before = animate && !reducedMotion ? chipPositions() : null;
+  const changed = (id, where) => prev && !inLane(prev.state, id, where);
+
+  $("#lane-pending").innerHTML = s.pending.length
+    ? s.pending.map((id) => chip(id, `arrives at ${info.get(id).arrival}`, "dim")).join("")
+    : `<span class="empty">none</span>`;
+
+  const readyLabel = (x) => {
+    if (sim.algorithm === "FCFS") return `arr ${info.get(x.id).arrival} · burst ${info.get(x.id).burst}`;
+    if (sim.algorithm === "SJF") return `burst ${info.get(x.id).burst} · arr ${info.get(x.id).arrival}`;
+    return `rem ${x.remaining} of ${info.get(x.id).burst}`;
+  };
+  if (s.ready.length) {
+    const parts = s.ready.map((x, k) => chip(x.id, readyLabel(x), `${k === 0 ? "next" : ""} ${changed(x.id, "ready") ? "flash" : ""}`));
+    const sep = sim.algorithm === "RR" ? `<span class="qarrow">→</span>` : "";
+    const ends = sim.algorithm === "RR" ? [`<span class="qend">head</span>`, `<span class="qend">tail</span>`] : ["", ""];
+    $("#lane-ready").innerHTML = ends[0] + parts.join(sep) + ends[1];
+  } else {
+    $("#lane-ready").innerHTML = `<span class="empty">empty</span>`;
+  }
+
+  if (s.running) {
+    const p = info.get(s.running.id);
+    const executed = p.burst - s.running.remaining;
+    let slice = "";
+    if (sim.algorithm === "RR") {
+      // The slice in progress at t, or the one that just ended at t (quantum-expiry step).
+      const seg = sim.segments.find((g) => g.pid === p.id && g.start <= f.time && f.time < g.end)
+        || sim.segments.find((g) => g.pid === p.id && g.end === f.time);
+      if (seg) slice = `<div class="meta">Slice #${seg.slice}: ${f.time - seg.start} of ${seg.end - seg.start} used (q = ${sim.quantum})</div>`;
+    }
+    $("#lane-cpu").innerHTML = `<div class="cpu-card ${changed(p.id, "cpu") ? "flash" : ""}" data-pid="${esc(p.id)}" style="--h:${cur.colorOf.get(p.id)}">
+      <div class="pid">${esc(p.id)}</div>
+      <div class="bar" aria-hidden="true"><span style="width:${(executed / p.burst) * 100}%"></span></div>
+      <div class="meta">${executed} of ${p.burst} done · ${s.running.remaining} remaining</div>${slice}</div>`;
+  } else {
+    // Between events at the same instant the CPU is free but about to be given away (zero switch time).
+    const moreAtThisTime = state.index < frames.length - 1 && frames[state.index + 1].time === f.time;
+    const label = f.kind === "start" ? "not started"
+      : s.done.length === cur.processes.length ? "all processes completed"
+      : moreAtThisTime && s.ready.length ? "free — selecting the next process" : "idle";
+    $("#lane-cpu").innerHTML = `<div class="cpu-idle">${label}</div>`;
+  }
+
+  $("#lane-done").innerHTML = s.done.length
+    ? s.done.map((id) => chip(id, `done at ${sim.results.find((r) => r.id === id).completion}`, changed(id, "done") ? "flash" : "")).join("")
+    : `<span class="empty">none</span>`;
+
+  if (before) animateChips(before);
+  setGanttCursor(f.time);
+  renderResults(f);
+  const lastTrace = lastTraceIndexUpTo(state.index);
+  markTrace(f.traceIndex, lastTrace);
+  updateControls();
+}
+
+function inLane(s, id, where) {
+  if (where === "cpu") return !!s.running && s.running.id === id;
+  if (where === "ready") return s.ready.some((x) => x.id === id);
+  if (where === "done") return s.done.includes(id);
+  return s.pending.includes(id);
+}
+
+function lastTraceIndexUpTo(i) {
+  const frames = state.current.frames;
+  for (let k = i; k >= 0; k--) if (frames[k].traceIndex >= 0) return frames[k].traceIndex;
+  return -1;
+}
+
+// FLIP animation: chips slide from their previous lane to the new one.
+function chipPositions() {
+  const m = new Map();
+  document.querySelectorAll("#player [data-pid]").forEach((el) => m.set(el.dataset.pid, el.getBoundingClientRect()));
+  return m;
+}
+function animateChips(before) {
+  document.querySelectorAll("#player [data-pid]").forEach((el) => {
+    const old = before.get(el.dataset.pid);
+    if (!old) return;
+    const now = el.getBoundingClientRect();
+    const dx = old.left - now.left;
+    const dy = old.top - now.top;
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+    el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "translate(0, 0)" }],
+      { duration: 380, easing: "cubic-bezier(.2,.7,.3,1)" });
+  });
+}
+
+function updateControls() {
+  const last = state.current.frames.length - 1;
+  $("#pl-first").disabled = state.index === 0;
+  $("#pl-prev").disabled = state.index === 0;
+  $("#pl-next").disabled = state.index === last;
+  $("#pl-last").disabled = state.index === last;
+  $("#pl-play").textContent = state.playing ? "⏸ Pause" : state.index === last ? "↺ Replay" : "▶ Play";
+}
+
+function stepDelay(frame) {
+  const speed = Number($("#pl-speed").value) || 1;
+  return (frame.kind === "tick" ? 650 : 1000) / speed;
+}
+
+function play() {
+  if (!state.current) return;
+  if (state.index >= state.current.frames.length - 1) showFrame(0, false);
+  state.playing = true;
+  updateControls();
+  const tick = () => {
+    if (!state.playing) return;
+    if (state.index >= state.current.frames.length - 1) { pause(); return; }
+    showFrame(state.index + 1, true);
+    state.timer = setTimeout(tick, stepDelay(state.current.frames[state.index]));
+  };
+  state.timer = setTimeout(tick, 350);
+}
+
+function pause() {
+  state.playing = false;
+  clearTimeout(state.timer);
+  if (state.current && state.mode === "sim") updateControls();
+}
+
+function step(delta) {
+  pause();
+  showFrame(state.index + delta, Math.abs(delta) === 1);
+}
+
+// ----- Self-tests -----
 function renderSelfTests() {
   const results = runSelfTests();
   const passed = results.filter((r) => r.pass).length;
@@ -852,13 +1342,19 @@ function renderSelfTests() {
   if (passed !== results.length) $("#selftest-details").open = true;
 }
 
+function updateQuantumHint() {
+  const rr = $("#algo").value === "RR";
+  $("#quantum-hint").textContent = rr ? "Positive integer. Arrivals at a quantum boundary join the queue before the preempted process."
+    : "Used only by Round Robin (and the RR rows of the comparison table).";
+}
+
 // ----- Events -----
 $("#process-rows").addEventListener("input", (e) => {
   const el = e.target;
   if (!el.dataset.f) return;
   state.rows[Number(el.dataset.i)][el.dataset.f] = el.value;
   el.removeAttribute("aria-invalid");
-  markStale();
+  scheduleUpdate();
 });
 $("#process-rows").addEventListener("click", (e) => {
   const btn = e.target.closest("button[data-act]");
@@ -869,36 +1365,54 @@ $("#process-rows").addEventListener("click", (e) => {
   if (act === "up" && i > 0) [state.rows[i - 1], state.rows[i]] = [state.rows[i], state.rows[i - 1]];
   if (act === "down" && i < state.rows.length - 1) [state.rows[i + 1], state.rows[i]] = [state.rows[i], state.rows[i + 1]];
   renderRows();
-  markStale();
+  update();
 });
 $("#add-btn").addEventListener("click", () => {
   const last = state.rows[state.rows.length - 1];
   state.rows.push({ id: nextFreeId(), arrival: last ? last.arrival : "0", burst: "1" });
   renderRows();
-  markStale();
+  update();
   const inputs = document.querySelectorAll('#process-rows input[data-f="id"]');
   inputs[inputs.length - 1].focus();
 });
 $("#clear-btn").addEventListener("click", () => {
   state.rows = [];
   renderRows();
-  markStale();
+  update();
 });
-$("#run-btn").addEventListener("click", run);
-$("#algo").addEventListener("change", () => { updateQuantumHint(); if (state.lastRun) run(); });
-$("#quantum").addEventListener("input", markStale);
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && e.target.matches("input")) run();
-});
+$("#algo").addEventListener("change", () => { updateQuantumHint(); update(); });
+$("#quantum").addEventListener("input", scheduleUpdate);
 $("#load-btn").addEventListener("click", () => loadWorkload($("#preset").value));
+document.querySelectorAll('input[name="mode"]').forEach((r) => r.addEventListener("change", () => {
+  state.mode = r.value;
+  saveMode(state.mode);
+  pause();
+  applyMode();
+}));
 
-function updateQuantumHint() {
-  const rr = $("#algo").value === "RR";
-  $("#quantum-hint").textContent = rr ? "Positive integer. Arrivals at a quantum boundary join the queue before the preempted process."
-    : "Used only by Round Robin (and the RR rows of the comparison table).";
-}
+$("#pl-play").addEventListener("click", () => (state.playing ? pause() : play()));
+$("#pl-first").addEventListener("click", () => { pause(); showFrame(0, false); });
+$("#pl-last").addEventListener("click", () => { pause(); showFrame(state.current.frames.length - 1, false); });
+$("#pl-prev").addEventListener("click", () => step(-1));
+$("#pl-next").addEventListener("click", () => step(1));
+$("#pl-slider").addEventListener("input", (e) => { pause(); showFrame(Number(e.target.value), false); });
+$("#trace-details").addEventListener("toggle", () => {
+  if (state.mode === "sim" && state.current) markTrace(state.current.frames[state.index].traceIndex, lastTraceIndexUpTo(state.index));
+});
+document.addEventListener("keydown", (e) => {
+  if (state.mode !== "sim" || !state.current || $("#player").hidden) return;
+  if (e.target.matches("input[type=text], select, textarea")) return;
+  if (e.key === " ") { e.preventDefault(); state.playing ? pause() : play(); }
+  else if (e.key === "ArrowRight") { e.preventDefault(); step(1); }
+  else if (e.key === "ArrowLeft") { e.preventDefault(); step(-1); }
+  else if (e.key === "Home") { pause(); showFrame(0, false); }
+  else if (e.key === "End") { pause(); showFrame(state.current.frames.length - 1, false); }
+});
 
+// ----- Start -----
 $("#preset").innerHTML = Object.entries(WORKLOADS).map(([k, w]) => `<option value="${k}">${esc(w.label)}</option>`).join("");
+state.mode = readSavedMode();
+document.querySelector(`input[name="mode"][value="${state.mode}"]`).checked = true;
 updateQuantumHint();
 renderSelfTests();
 loadWorkload("A");
