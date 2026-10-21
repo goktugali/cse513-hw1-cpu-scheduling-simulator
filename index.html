@@ -5,15 +5,903 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CPU Scheduling Simulator</title>
 <style>
-  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 48px auto; padding: 0 16px; }
+  :root {
+    --bg: #f6f6f3;
+    --panel: #ffffff;
+    --text: #1d1d1f;
+    --muted: #5d6066;
+    --border: #d8d8d3;
+    --accent: #2457c5;
+    --accent-text: #ffffff;
+    --danger: #b3261e;
+    --danger-bg: #fdecea;
+    --ok: #1e7d3a;
+    --ok-bg: #e6f4e9;
+    --idle-a: #e2e2dd;
+    --idle-b: #f1f1ed;
+    --seg-s: 62%;
+    --seg-l: 82%;
+    --seg-edge: rgba(0, 0, 0, 0.45);
+    --row-hl: #f0f4ff;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #131316;
+      --panel: #1c1c20;
+      --text: #ececec;
+      --muted: #a2a2a8;
+      --border: #34343a;
+      --accent: #7ea4ff;
+      --accent-text: #0b1530;
+      --danger: #ff8a80;
+      --danger-bg: #3a1c1a;
+      --ok: #7bd88f;
+      --ok-bg: #15301c;
+      --idle-a: #2b2b30;
+      --idle-b: #222226;
+      --seg-s: 42%;
+      --seg-l: 36%;
+      --seg-edge: rgba(255, 255, 255, 0.6);
+      --row-hl: #232a3d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #131316; --panel: #1c1c20; --text: #ececec; --muted: #a2a2a8; --border: #34343a;
+    --accent: #7ea4ff; --accent-text: #0b1530; --danger: #ff8a80; --danger-bg: #3a1c1a;
+    --ok: #7bd88f; --ok-bg: #15301c; --idle-a: #2b2b30; --idle-b: #222226;
+    --seg-s: 42%; --seg-l: 36%; --seg-edge: rgba(255, 255, 255, 0.6); --row-hl: #232a3d;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 1180px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  h2 { font-size: 1.1rem; margin: 0 0 12px; }
+  .subtitle { color: var(--muted); margin: 0 0 20px; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 16px;
+    min-width: 0;
+  }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+  @media (max-width: 860px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+
+  table { border-collapse: collapse; width: 100%; }
+  th, td { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: left; }
+  th { font-size: 0.82rem; color: var(--muted); font-weight: 600; white-space: nowrap; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .table-scroll { overflow-x: auto; }
+
+  input[type="text"], select {
+    font: inherit;
+    color: var(--text);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 8px;
+    width: 100%;
+    min-width: 0;
+  }
+  input[aria-invalid="true"] { border-color: var(--danger); outline: 2px solid var(--danger); outline-offset: -1px; }
+  #process-table input { max-width: 110px; min-width: 52px; }
+  #process-table input[data-f="id"] { min-width: 64px; }
+  #process-table td { border-bottom: none; padding: 3px 4px; }
+  #process-table td.idx { color: var(--muted); font-size: 0.85rem; width: 28px; }
+
+  button {
+    font: inherit;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
+  button.icon { padding: 3px 7px; line-height: 1.2; }
+  button:disabled { opacity: 0.4; cursor: default; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 4px; }
+  .hint { color: var(--muted); font-size: 0.82rem; margin: 4px 0 0; }
+
+  .errors {
+    background: var(--danger-bg);
+    color: var(--danger);
+    border: 1px solid var(--danger);
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 16px;
+  }
+  .errors ul { margin: 6px 0 0; padding-left: 20px; }
+  .stale {
+    border: 1px dashed var(--accent);
+    color: var(--accent);
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin-bottom: 16px;
+  }
+  [hidden] { display: none !important; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  /* Gantt chart */
+  .gantt-scroll { overflow-x: auto; padding-bottom: 4px; }
+  .gantt { position: relative; width: 100%; }
+  .gantt-arrivals, .gantt-bars, .gantt-ticks { position: relative; margin: 0 16px; }
+  .gantt-bars { height: 52px; }
+  .gantt-ticks { height: 22px; }
+  .seg {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    border: 1px solid var(--seg-edge);
+    border-left-width: 2px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    font-weight: 600;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    color: var(--text);
+  }
+  .seg small { font-weight: 400; font-size: 0.7rem; color: var(--text); opacity: 0.8; }
+  .seg.idle {
+    background: repeating-linear-gradient(45deg, var(--idle-a) 0 6px, var(--idle-b) 6px 12px);
+    color: var(--muted);
+    font-weight: 400;
+    font-style: italic;
+  }
+  .tick {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+    font-size: 0.78rem;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .tick::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: -4px;
+    height: 5px;
+    border-left: 1px solid var(--muted);
+  }
+  .arrival {
+    position: absolute;
+    transform: translateX(-50%);
+    font-size: 0.72rem;
+    color: var(--muted);
+    text-align: center;
+    line-height: 1.15;
+    white-space: nowrap;
+  }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 0.82rem; color: var(--muted); margin-top: 10px; }
+  .swatch { display: inline-block; width: 12px; height: 12px; border: 1px solid var(--seg-edge); vertical-align: -2px; margin-right: 4px; }
+
+  .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .stat { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+  .stat .label { font-size: 0.8rem; color: var(--muted); }
+  .stat .value { font-size: 1.4rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .stat .frac { font-size: 0.8rem; color: var(--muted); }
+  @media (max-width: 560px) { .stats { grid-template-columns: minmax(0, 1fr); } }
+
+  tfoot td { font-weight: 650; border-top: 2px solid var(--border); }
+  tr.current td { background: var(--row-hl); }
+  td.best { font-weight: 700; color: var(--ok); }
+
+  .checks { list-style: none; padding: 0; margin: 0; }
+  .checks li { padding: 4px 0; }
+  .pass { color: var(--ok); font-weight: 600; }
+  .fail { color: var(--danger); font-weight: 600; }
+
+  details > summary { cursor: pointer; font-weight: 600; }
+  details[open] > summary { margin-bottom: 10px; }
+  .trace td:first-child { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .trace .q { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.82rem; color: var(--muted); }
+  .badge { display: inline-block; font-size: 0.72rem; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+  footer { color: var(--muted); font-size: 0.82rem; margin-top: 24px; }
 </style>
 </head>
 <body>
-<h1>CPU Scheduling Simulator</h1>
-<p>Deployment test — the simulator will be published here.</p>
-<p id="js-check">JavaScript: not running</p>
+<main>
+  <h1>CPU Scheduling Simulator</h1>
+  <p class="subtitle">FCFS · SJF (non-preemptive) · SRTF (preemptive) · Round Robin — one CPU, one CPU burst per process, zero context-switch time.</p>
+
+  <div class="layout">
+    <section class="panel" aria-labelledby="proc-h">
+      <h2 id="proc-h">Processes</h2>
+      <div class="table-scroll">
+        <table id="process-table">
+          <thead>
+            <tr><th>#</th><th>ID</th><th>Arrival</th><th>CPU burst</th><th><span class="sr">Actions</span></th></tr>
+          </thead>
+          <tbody id="process-rows"></tbody>
+        </table>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button id="add-btn" type="button">+ Add process</button>
+        <button id="clear-btn" type="button">Remove all</button>
+      </div>
+      <p class="hint">Input order matters: it is the final tie-breaker (after arrival time). Use ↑ ↓ to reorder.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="ctl-h">
+      <h2 id="ctl-h">Simulation</h2>
+      <div class="field">
+        <label for="algo">Algorithm</label>
+        <select id="algo">
+          <option value="FCFS">FCFS — First-Come, First-Served</option>
+          <option value="SJF">SJF — Shortest Job First (non-preemptive)</option>
+          <option value="SRTF">SRTF — Shortest Remaining Time First</option>
+          <option value="RR">RR — Round Robin</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="quantum">Round-robin time quantum</label>
+        <input id="quantum" type="text" inputmode="numeric" value="2" autocomplete="off">
+        <p class="hint" id="quantum-hint">Used only by Round Robin.</p>
+      </div>
+      <button id="run-btn" type="button" class="primary" style="width:100%">Run simulation</button>
+      <div class="field" style="margin-top:16px">
+        <label for="preset">Example workloads</label>
+        <div class="row" style="flex-wrap:nowrap">
+          <select id="preset"></select>
+          <button id="load-btn" type="button">Load</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div id="errors" class="errors" role="alert" hidden></div>
+  <div id="stale" class="stale" hidden>Inputs changed — press <strong>Run simulation</strong> to update the results.</div>
+
+  <div id="results" hidden>
+    <section class="panel" aria-labelledby="gantt-h">
+      <h2 id="gantt-h">Gantt chart <span class="badge" id="gantt-algo"></span></h2>
+      <div class="gantt-scroll"><div class="gantt" id="gantt"></div></div>
+      <div class="legend" id="gantt-legend"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="metrics-h">
+      <h2 id="metrics-h">Results</h2>
+      <div class="stats" id="stats"></div>
+      <div class="table-scroll">
+        <table id="results-table">
+          <thead>
+            <tr>
+              <th>Process</th><th class="num">Arrival</th><th class="num">Burst</th><th class="num">First start</th>
+              <th class="num">Completion</th><th class="num">Turnaround</th><th class="num">Waiting</th><th class="num">Response</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+          <tfoot></tfoot>
+        </table>
+      </div>
+      <p class="hint">Turnaround = Completion − Arrival · Waiting = Turnaround − Burst · Response = First start − Arrival</p>
+    </section>
+
+    <section class="panel" aria-labelledby="checks-h">
+      <h2 id="checks-h">Correctness checks</h2>
+      <ul class="checks" id="checks"></ul>
+    </section>
+
+    <section class="panel" aria-labelledby="compare-h">
+      <h2 id="compare-h">Compare algorithms on this workload</h2>
+      <div class="table-scroll">
+        <table id="compare-table">
+          <thead><tr><th>Algorithm</th><th class="num">Avg turnaround</th><th class="num">Avg waiting</th><th class="num">Avg response</th><th class="num">Finish time</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="hint">Best value in each column is highlighted. The selected algorithm's row is shaded.</p>
+    </section>
+
+    <section class="panel">
+      <details id="trace-details">
+        <summary>Decision trace — every arrival, dispatch, preemption and completion</summary>
+        <div class="table-scroll">
+          <table class="trace"><thead><tr><th>Time</th><th>Event</th><th>Ready queue after event</th></tr></thead><tbody id="trace"></tbody></table>
+        </div>
+      </details>
+    </section>
+  </div>
+
+  <section class="panel">
+    <details id="selftest-details">
+      <summary>Built-in self-tests <span id="selftest-summary" class="badge"></span></summary>
+      <p class="hint">Each test runs the engine on a fixed workload and compares the timeline and averages with hand-calculated expectations. Every simulation is also checked against the correctness properties above.</p>
+      <div class="table-scroll"><table><thead><tr><th>Test</th><th>Result</th><th>Details</th></tr></thead><tbody id="selftests"></tbody></table></div>
+    </details>
+  </section>
+
+  <footer>Client-side only: every calculation runs in your browser. No data leaves this page.</footer>
+</main>
+
 <script>
-  document.getElementById("js-check").textContent = "JavaScript: OK (" + new Date().toISOString() + ")";
+"use strict";
+// ===== ENGINE-BEGIN =====
+// Pure scheduling engine: no DOM access, so it can be tested outside the browser.
+
+const ALGORITHM_NAMES = {
+  FCFS: "First-Come, First-Served",
+  SJF: "Shortest Job First (non-preemptive)",
+  SRTF: "Shortest Remaining Time First (preemptive)",
+  RR: "Round Robin",
+};
+const LIMITS = { maxProcesses: 50, maxTime: 10000 };
+
+// Parses a user-typed number. Returns { value } or { error }.
+function parseWholeNumber(text, label, min) {
+  const s = String(text == null ? "" : text).trim();
+  if (s === "") return { error: `${label} is empty.` };
+  if (!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(s)) return { error: `${label} must be a whole number (got "${s}").` };
+  const n = Number(s);
+  if (!Number.isInteger(n)) return { error: `${label} must be an integer (got ${s}).` };
+  if (n < min) {
+    return { error: min === 0 ? `${label} cannot be negative (got ${n}).` : `${label} must be a positive integer (got ${n}).` };
+  }
+  if (n > LIMITS.maxTime) return { error: `${label} is too large (got ${n}; the limit is ${LIMITS.maxTime}).` };
+  return { value: n };
+}
+
+// rows: [{ id, arrival, burst }] as typed (strings). Returns { errors, processes, quantum }.
+// Each error is { row (1-based or null), field, message }.
+function validateInput(rows, algorithm, quantumText) {
+  const errors = [];
+  const processes = [];
+  if (!ALGORITHM_NAMES[algorithm]) errors.push({ row: null, field: "algo", message: `Unknown algorithm "${algorithm}".` });
+  if (rows.length === 0) errors.push({ row: null, field: null, message: "Add at least one process." });
+  if (rows.length > LIMITS.maxProcesses) {
+    errors.push({ row: null, field: null, message: `Too many processes (${rows.length}); the limit is ${LIMITS.maxProcesses}.` });
+  }
+  const seen = new Map();
+  rows.forEach((r, i) => {
+    const row = i + 1;
+    const where = `Row ${row}`;
+    const id = String(r.id == null ? "" : r.id).trim();
+    let ok = true;
+    if (id === "") {
+      errors.push({ row, field: "id", message: `${where}: process ID is empty.` });
+      ok = false;
+    } else if (!/^[A-Za-z0-9_-]{1,12}$/.test(id)) {
+      errors.push({ row, field: "id", message: `${where}: process ID "${id}" may only use 1–12 letters, digits, "-" or "_".` });
+      ok = false;
+    } else {
+      const key = id.toLowerCase();
+      if (seen.has(key)) {
+        errors.push({ row, field: "id", message: `${where}: process ID "${id}" duplicates row ${seen.get(key)}. IDs must be unique.` });
+        ok = false;
+      } else {
+        seen.set(key, row);
+      }
+    }
+    const a = parseWholeNumber(r.arrival, `${where}: arrival time`, 0);
+    if (a.error) { errors.push({ row, field: "arrival", message: a.error }); ok = false; }
+    const b = parseWholeNumber(r.burst, `${where}: CPU burst`, 1);
+    if (b.error) { errors.push({ row, field: "burst", message: b.error }); ok = false; }
+    if (ok) processes.push({ id, arrival: a.value, burst: b.value });
+  });
+  let quantum = null;
+  if (algorithm === "RR") {
+    const q = parseWholeNumber(quantumText, "Time quantum", 1);
+    if (q.error) errors.push({ row: null, field: "quantum", message: q.error });
+    else quantum = q.value;
+  }
+  return { errors, processes: errors.length ? [] : processes, quantum };
+}
+
+// Simulates one algorithm. processes: [{ id, arrival, burst }] in input order (validated).
+// Returns { segments, results, averages, trace, algorithm, quantum }.
+// A segment is { pid, start, end } with pid === null for CPU idle; RR segments also carry `slice`.
+function simulate(processes, algorithm, quantum) {
+  if (!ALGORITHM_NAMES[algorithm]) throw new Error(`Unknown algorithm ${algorithm}`);
+  if (algorithm === "RR" && !(Number.isInteger(quantum) && quantum > 0)) throw new Error("RR needs a positive integer quantum");
+
+  const procs = processes.map((p, index) => ({
+    id: p.id, arrival: p.arrival, burst: p.burst, index,
+    remaining: p.burst, firstStart: null, completion: null, slices: 0,
+  }));
+  // Not-yet-arrived processes, in the order they will join the ready queue.
+  const pending = procs.slice().sort((x, y) => x.arrival - y.arrival || x.index - y.index);
+  const ready = [];
+  const segments = [];
+  const trace = [];
+  let t = 0;
+  let nextArrival = 0;
+  let finished = 0;
+
+  // Tie-breaking (assignment §2): earlier arrival, then earlier position in the input list.
+  const tieBreak = (x, y) => x.arrival - y.arrival || x.index - y.index;
+  const byArrival = tieBreak;
+  const byBurst = (x, y) => x.burst - y.burst || tieBreak(x, y);
+  const byRemaining = (x, y) => x.remaining - y.remaining || tieBreak(x, y);
+
+  const describe = (p) => {
+    if (algorithm === "SJF") return `${p.id}(burst ${p.burst})`;
+    if (algorithm === "FCFS") return `${p.id}(arr ${p.arrival})`;
+    return `${p.id}(rem ${p.remaining})`;
+  };
+  const snapshot = () => ready.map(describe).join(", ") || "—";
+  const log = (event) => trace.push({ time: t, event, queue: snapshot() });
+
+  // Moves every process with arrival <= time into the ready queue (tail), in arrival/input order.
+  const admit = (time) => {
+    const arrived = [];
+    while (nextArrival < pending.length && pending[nextArrival].arrival <= time) {
+      const p = pending[nextArrival++];
+      ready.push(p);
+      arrived.push(p);
+    }
+    if (arrived.length) {
+      const at = arrived[0].arrival === arrived[arrived.length - 1].arrival ? `at ${arrived[0].arrival}` : `by ${time}`;
+      log(`${arrived.map((p) => p.id).join(", ")} arrive${arrived.length === 1 ? "s" : ""} ${at} and join${arrived.length === 1 ? "s" : ""} the ready queue.`);
+    }
+    return arrived;
+  };
+  const idle = () => {
+    const until = pending[nextArrival].arrival;
+    segments.push({ pid: null, start: t, end: until });
+    log(`Ready queue is empty: CPU idle until the next arrival at ${until}.`);
+    t = until;
+  };
+  // Runs p from t to end. Merges with the previous segment when the same process simply continues
+  // (SRTF across a non-preempting arrival); RR slices are never merged.
+  const run = (p, end, extra) => {
+    if (p.firstStart === null) p.firstStart = t;
+    p.remaining -= end - t;
+    const last = segments[segments.length - 1];
+    if (!extra && last && last.pid === p.id && last.end === t) last.end = end;
+    else segments.push(Object.assign({ pid: p.id, start: t, end }, extra || {}));
+    t = end;
+    if (p.remaining === 0) {
+      p.completion = t;
+      finished++;
+    }
+  };
+
+  if (algorithm === "FCFS" || algorithm === "SJF") {
+    const order = algorithm === "FCFS" ? byArrival : byBurst;
+    while (finished < procs.length) {
+      admit(t);
+      if (ready.length === 0) { idle(); continue; }
+      ready.sort(order);
+      const p = ready.shift();
+      const why = ready.length === 0 ? "the only ready process"
+        : algorithm === "FCFS" ? `earliest arrival (${p.arrival})` : `shortest burst (${p.burst})`;
+      log(`CPU free: dispatch ${p.id} — ${why}. Runs to completion at ${t + p.remaining}.`);
+      run(p, t + p.remaining);
+      log(`${p.id} completes.`);
+    }
+  } else if (algorithm === "SRTF") {
+    let current = null;
+    while (finished < procs.length) {
+      const arrived = admit(t);
+      if (current === null && ready.length === 0) { idle(); continue; }
+      ready.sort(byRemaining);
+      if (current === null) {
+        current = ready.shift();
+        const why = ready.length === 0 ? "the only ready process" : `shortest remaining time (${current.remaining})`;
+        log(`CPU free: dispatch ${current.id} — ${why}.`);
+      } else if (ready.length && ready[0].remaining < current.remaining) {
+        const next = ready.shift();
+        log(`Preempt ${current.id} (rem ${current.remaining}): ${next.id} has strictly shorter remaining time (${next.remaining}).`);
+        ready.push(current);
+        ready.sort(byRemaining);
+        current = next;
+        trace[trace.length - 1].queue = snapshot();
+      } else if (arrived.length) {
+        const best = ready[0];
+        const rel = best.remaining === current.remaining ? "equal" : "longer";
+        log(`No preemption: ${current.id} keeps the CPU (rem ${current.remaining}); best waiting ${best.id} has ${rel} remaining time (${best.remaining}).`);
+      }
+      const upcoming = nextArrival < pending.length ? pending[nextArrival].arrival : Infinity;
+      run(current, Math.min(t + current.remaining, upcoming));
+      if (current.remaining === 0) {
+        log(`${current.id} completes.`);
+        current = null;
+      }
+    }
+  } else {
+    // Round robin: FIFO ready queue.
+    while (finished < procs.length) {
+      admit(t);
+      if (ready.length === 0) { idle(); continue; }
+      const p = ready.shift();
+      const length = Math.min(quantum, p.remaining);
+      p.slices++;
+      log(`Dispatch ${p.id} from the queue head for ${length} unit${length === 1 ? "" : "s"} (slice #${p.slices}, rem ${p.remaining}).`);
+      run(p, t + length, { slice: p.slices });
+      // Arrivals up to and including this boundary join the queue before the preempted process.
+      if (p.remaining === 0) {
+        log(`${p.id} completes and leaves the system.`);
+        admit(t);
+      } else {
+        log(`Quantum expires: ${p.id} has ${p.remaining} left.`);
+        admit(t);
+        ready.push(p);
+        log(`${p.id} is re-enqueued at the tail.`);
+      }
+    }
+  }
+
+  const results = procs.map((p) => {
+    const turnaround = p.completion - p.arrival;
+    return {
+      id: p.id, arrival: p.arrival, burst: p.burst, firstStart: p.firstStart, completion: p.completion,
+      turnaround, waiting: turnaround - p.burst, response: p.firstStart - p.arrival,
+    };
+  });
+  const sum = (k) => results.reduce((acc, r) => acc + r[k], 0);
+  const n = results.length;
+  const totals = { turnaround: sum("turnaround"), waiting: sum("waiting"), response: sum("response") };
+  const averages = { turnaround: totals.turnaround / n, waiting: totals.waiting / n, response: totals.response / n };
+  return { algorithm, quantum: algorithm === "RR" ? quantum : null, segments, results, totals, averages, trace };
+}
+
+// Checks the properties required in assignment §5. Returns [{ name, pass, detail }].
+function verifySchedule(processes, sim) {
+  const checks = [];
+  const segs = sim.segments;
+  const byId = new Map(sim.results.map((r) => [r.id, r]));
+  const add = (name, problems) => checks.push({ name, pass: problems.length === 0, detail: problems.join(" ") });
+
+  const cpu = new Map(processes.map((p) => [p.id, 0]));
+  segs.forEach((s) => { if (s.pid !== null) cpu.set(s.pid, cpu.get(s.pid) + (s.end - s.start)); });
+  add("Every process receives exactly its CPU burst",
+    processes.filter((p) => cpu.get(p.id) !== p.burst).map((p) => `${p.id} received ${cpu.get(p.id)}, expected ${p.burst}.`));
+
+  add("No process runs before its arrival",
+    segs.filter((s) => s.pid !== null && s.start < byId.get(s.pid).arrival)
+      .map((s) => `${s.pid} runs at ${s.start} but arrives at ${byId.get(s.pid).arrival}.`));
+
+  const overlap = [];
+  segs.forEach((s, i) => {
+    if (s.end <= s.start) overlap.push(`Empty or reversed interval ${s.start}–${s.end}.`);
+    if (i > 0 && s.start < segs[i - 1].end) overlap.push(`Intervals overlap at ${s.start}.`);
+  });
+  add("Processes never overlap on the single CPU", overlap);
+
+  add("Waiting and response times are nonnegative",
+    sim.results.filter((r) => r.waiting < 0 || r.response < 0).map((r) => `${r.id}: waiting ${r.waiting}, response ${r.response}.`));
+
+  // An idle interval [s, e) is wrong if some process had arrived before e and was unfinished after s.
+  const idleProblems = [];
+  segs.filter((s) => s.pid === null).forEach((s) => {
+    sim.results.forEach((r) => {
+      if (r.arrival < s.end && r.completion > s.start) idleProblems.push(`CPU idle ${s.start}–${s.end} while ${r.id} was ready.`);
+    });
+  });
+  add("The CPU is never idle while a process is ready", idleProblems);
+  return checks;
+}
+
+const fmt = (x) => (Number.isInteger(x) ? String(x) : String(Math.round(x * 100) / 100));
+const ganttString = (segments) => segments.map((s) => `${s.pid === null ? "idle" : s.pid} ${s.start}-${s.end}`).join(" | ");
+
+const WORKLOADS = {
+  A: { label: "Workload A (assignment)", quantum: 2, processes: [
+    { id: "P1", arrival: 0, burst: 8 }, { id: "P2", arrival: 1, burst: 4 },
+    { id: "P3", arrival: 2, burst: 2 }, { id: "P4", arrival: 4, burst: 1 }] },
+  B: { label: "Workload B (assignment)", quantum: 2, processes: [
+    { id: "P1", arrival: 2, burst: 3 }, { id: "P2", arrival: 2, burst: 1 },
+    { id: "P3", arrival: 8, burst: 2 }, { id: "P4", arrival: 9, burst: 1 }] },
+  L1: { label: "Lecture 2: 24 / 3 / 3, all at 0", quantum: 4, processes: [
+    { id: "P1", arrival: 0, burst: 24 }, { id: "P2", arrival: 0, burst: 3 }, { id: "P3", arrival: 0, burst: 3 }] },
+  L2: { label: "Lecture 2: SJF 6 / 8 / 7 / 3", quantum: 2, processes: [
+    { id: "P1", arrival: 0, burst: 6 }, { id: "P2", arrival: 0, burst: 8 },
+    { id: "P3", arrival: 0, burst: 7 }, { id: "P4", arrival: 0, burst: 3 }] },
+  L3: { label: "Lecture 2: SRTF arrivals 0–3", quantum: 2, processes: [
+    { id: "P1", arrival: 0, burst: 8 }, { id: "P2", arrival: 1, burst: 4 },
+    { id: "P3", arrival: 2, burst: 9 }, { id: "P4", arrival: 3, burst: 5 }] },
+};
+
+// Expected values: assignment workloads (hand-calculated) and Lecture 2 worked examples.
+const SELF_TESTS = [
+  { name: "Workload A · FCFS", w: "A", algo: "FCFS", gantt: "P1 0-8 | P2 8-12 | P3 12-14 | P4 14-15", avg: [10.5, 6.75, 6.75] },
+  { name: "Workload A · SJF", w: "A", algo: "SJF", gantt: "P1 0-8 | P4 8-9 | P3 9-11 | P2 11-15", avg: [9, 5.25, 5.25] },
+  { name: "Workload A · SRTF", w: "A", algo: "SRTF", gantt: "P1 0-1 | P2 1-2 | P3 2-4 | P4 4-5 | P2 5-8 | P1 8-15", avg: [6.25, 2.5, 0] },
+  { name: "Workload A · RR q=2", w: "A", algo: "RR", q: 2, gantt: "P1 0-2 | P2 2-4 | P3 4-6 | P1 6-8 | P4 8-9 | P2 9-11 | P1 11-13 | P1 13-15", avg: [8.5, 4.75, 1.75] },
+  { name: "Workload B · FCFS", w: "B", algo: "FCFS", gantt: "idle 0-2 | P1 2-5 | P2 5-6 | idle 6-8 | P3 8-10 | P4 10-11", avg: [2.75, 1, 1] },
+  { name: "Workload B · SJF", w: "B", algo: "SJF", gantt: "idle 0-2 | P2 2-3 | P1 3-6 | idle 6-8 | P3 8-10 | P4 10-11", avg: [2.25, 0.5, 0.5] },
+  { name: "Workload B · SRTF (tie at 9 keeps P3)", w: "B", algo: "SRTF", gantt: "idle 0-2 | P2 2-3 | P1 3-6 | idle 6-8 | P3 8-10 | P4 10-11", avg: [2.25, 0.5, 0.5] },
+  { name: "Workload B · RR q=2", w: "B", algo: "RR", q: 2, gantt: "idle 0-2 | P1 2-4 | P2 4-5 | P1 5-6 | idle 6-8 | P3 8-10 | P4 10-11", avg: [2.75, 1, 0.75] },
+  { name: "Lecture 2 slide 19 · FCFS 24/3/3", w: "L1", algo: "FCFS", gantt: "P1 0-24 | P2 24-27 | P3 27-30", avg: [27, 17, 17] },
+  { name: "Lecture 2 slide 34 · SJF 24/3/3 (P2 before P3)", w: "L1", algo: "SJF", gantt: "P2 0-3 | P3 3-6 | P1 6-30", avg: [13, 3, 3] },
+  { name: "Lecture 2 slide 31 · RR q=4 24/3/3", w: "L1", algo: "RR", q: 4, gantt: "P1 0-4 | P2 4-7 | P3 7-10 | P1 10-14 | P1 14-18 | P1 18-22 | P1 22-26 | P1 26-30", avg: [47 / 3, 17 / 3, 11 / 3] },
+  { name: "Lecture 2 slide 23 · SJF 6/8/7/3", w: "L2", algo: "SJF", gantt: "P4 0-3 | P1 3-9 | P3 9-16 | P2 16-24", avg: [13, 7, 7] },
+  { name: "Lecture 2 slides 28–29 · SRTF", w: "L3", algo: "SRTF", gantt: "P1 0-1 | P2 1-5 | P4 5-10 | P1 10-17 | P3 17-26", avg: [13, 6.5, 4.25] },
+  { name: "RR: arrival at a boundary joins before the preempted process", algo: "RR", q: 2,
+    procs: [{ id: "P1", arrival: 0, burst: 3 }, { id: "P2", arrival: 2, burst: 2 }], gantt: "P1 0-2 | P2 2-4 | P1 4-5" },
+  { name: "SRTF: equal remaining time does not preempt", algo: "SRTF",
+    procs: [{ id: "P1", arrival: 0, burst: 4 }, { id: "P2", arrival: 1, burst: 3 }], gantt: "P1 0-4 | P2 4-7" },
+  { name: "SRTF: strictly shorter remaining time preempts", algo: "SRTF",
+    procs: [{ id: "P1", arrival: 0, burst: 5 }, { id: "P2", arrival: 1, burst: 3 }], gantt: "P1 0-1 | P2 1-4 | P1 4-8" },
+  { name: "SJF: equal bursts → earlier arrival wins", algo: "SJF",
+    procs: [{ id: "P1", arrival: 0, burst: 2 }, { id: "P3", arrival: 2, burst: 3 }, { id: "P2", arrival: 1, burst: 3 }], gantt: "P1 0-2 | P2 2-5 | P3 5-8" },
+  { name: "SJF: equal bursts and arrivals → input order wins", algo: "SJF",
+    procs: [{ id: "P1", arrival: 0, burst: 1 }, { id: "Pb", arrival: 1, burst: 2 }, { id: "Pa", arrival: 1, burst: 2 }], gantt: "P1 0-1 | Pb 1-3 | Pa 3-5" },
+  { name: "FCFS: simultaneous arrivals → input order wins", algo: "FCFS",
+    procs: [{ id: "X", arrival: 3, burst: 2 }, { id: "Y", arrival: 3, burst: 1 }], gantt: "idle 0-3 | X 3-5 | Y 5-6" },
+];
+
+const VALIDATION_TESTS = [
+  { name: "Rejects a duplicate ID", rows: [{ id: "P1", arrival: "0", burst: "2" }, { id: "p1", arrival: "1", burst: "1" }], algo: "FCFS", expect: "duplicates" },
+  { name: "Rejects a negative CPU burst", rows: [{ id: "P1", arrival: "0", burst: "-3" }], algo: "FCFS", expect: "positive" },
+  { name: "Rejects a zero CPU burst", rows: [{ id: "P1", arrival: "0", burst: "0" }], algo: "FCFS", expect: "positive" },
+  { name: "Rejects a negative arrival time", rows: [{ id: "P1", arrival: "-1", burst: "2" }], algo: "FCFS", expect: "negative" },
+  { name: "Rejects a non-integer arrival time", rows: [{ id: "P1", arrival: "1.5", burst: "2" }], algo: "FCFS", expect: "integer" },
+  { name: "Rejects text in a number field", rows: [{ id: "P1", arrival: "abc", burst: "2" }], algo: "FCFS", expect: "whole number" },
+  { name: "Rejects an empty process ID", rows: [{ id: " ", arrival: "0", burst: "2" }], algo: "FCFS", expect: "empty" },
+  { name: "Rejects quantum 0 for round robin", rows: [{ id: "P1", arrival: "0", burst: "2" }], algo: "RR", quantum: "0", expect: "quantum" },
+  { name: "Rejects an empty workload", rows: [], algo: "FCFS", expect: "at least one" },
+  { name: "Accepts a valid workload", rows: [{ id: "P1", arrival: "0", burst: "2" }], algo: "RR", quantum: "2", expect: null },
+];
+
+function runSelfTests() {
+  const out = [];
+  const close = (a, b) => Math.abs(a - b) < 1e-9;
+  SELF_TESTS.forEach((tc) => {
+    const procs = tc.procs || WORKLOADS[tc.w].processes;
+    const sim = simulate(procs, tc.algo, tc.q || null);
+    const problems = [];
+    const got = ganttString(sim.segments);
+    if (got !== tc.gantt) problems.push(`Timeline: expected "${tc.gantt}", got "${got}".`);
+    if (tc.avg) {
+      const a = sim.averages;
+      const g = [a.turnaround, a.waiting, a.response];
+      if (!g.every((v, i) => close(v, tc.avg[i]))) {
+        problems.push(`Averages (T/W/R): expected ${tc.avg.map(fmt).join(" / ")}, got ${g.map(fmt).join(" / ")}.`);
+      }
+    }
+    verifySchedule(procs, sim).filter((c) => !c.pass).forEach((c) => problems.push(`${c.name}: ${c.detail}`));
+    out.push({ name: tc.name, pass: problems.length === 0, detail: problems.join(" ") || `${got}` });
+  });
+  VALIDATION_TESTS.forEach((tc) => {
+    const v = validateInput(tc.rows, tc.algo, tc.quantum || "2");
+    const msgs = v.errors.map((e) => e.message).join(" ");
+    const pass = tc.expect === null ? v.errors.length === 0 : msgs.toLowerCase().includes(tc.expect);
+    out.push({ name: tc.name, pass, detail: msgs || "No errors." });
+  });
+  return out;
+}
+// ===== ENGINE-END =====
+</script>
+
+<script>
+"use strict";
+// ===== UI =====
+const $ = (sel) => document.querySelector(sel);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const hue = (index) => Math.round((index * 137.508 + 210) % 360);
+
+const state = { rows: [], lastRun: null };
+
+function renderRows() {
+  const body = $("#process-rows");
+  body.innerHTML = state.rows.map((r, i) => `
+    <tr>
+      <td class="idx">${i + 1}</td>
+      <td><input type="text" data-i="${i}" data-f="id" value="${esc(r.id)}" aria-label="Process ${i + 1} ID" autocomplete="off"></td>
+      <td><input type="text" inputmode="numeric" data-i="${i}" data-f="arrival" value="${esc(r.arrival)}" aria-label="Process ${i + 1} arrival time" autocomplete="off"></td>
+      <td><input type="text" inputmode="numeric" data-i="${i}" data-f="burst" value="${esc(r.burst)}" aria-label="Process ${i + 1} CPU burst" autocomplete="off"></td>
+      <td style="white-space:nowrap">
+        <button type="button" class="icon" data-act="up" data-i="${i}" aria-label="Move row ${i + 1} up" ${i === 0 ? "disabled" : ""}>↑</button>
+        <button type="button" class="icon" data-act="down" data-i="${i}" aria-label="Move row ${i + 1} down" ${i === state.rows.length - 1 ? "disabled" : ""}>↓</button>
+        <button type="button" class="icon" data-act="del" data-i="${i}" aria-label="Remove row ${i + 1}">✕</button>
+      </td>
+    </tr>`).join("");
+}
+
+function loadWorkload(key) {
+  const w = WORKLOADS[key];
+  state.rows = w.processes.map((p) => ({ id: p.id, arrival: String(p.arrival), burst: String(p.burst) }));
+  $("#quantum").value = String(w.quantum);
+  renderRows();
+  run();
+}
+
+function markStale() {
+  if (state.lastRun) $("#stale").hidden = false;
+}
+
+function nextFreeId() {
+  const used = new Set(state.rows.map((r) => String(r.id).trim().toLowerCase()));
+  let k = state.rows.length + 1;
+  while (used.has(`p${k}`)) k++;
+  return `P${k}`;
+}
+
+function showErrors(errors) {
+  document.querySelectorAll("[aria-invalid]").forEach((el) => el.removeAttribute("aria-invalid"));
+  const box = $("#errors");
+  if (!errors.length) { box.hidden = true; return; }
+  errors.forEach((e) => {
+    const el = e.field === "quantum" ? $("#quantum")
+      : e.row ? document.querySelector(`#process-rows input[data-i="${e.row - 1}"][data-f="${e.field}"]`) : null;
+    if (el) el.setAttribute("aria-invalid", "true");
+  });
+  box.innerHTML = `<strong>The simulation was not run — please fix ${errors.length === 1 ? "this problem" : `these ${errors.length} problems`}:</strong>
+    <ul>${errors.map((e) => `<li>${esc(e.message)}</li>`).join("")}</ul>`;
+  box.hidden = false;
+}
+
+function run() {
+  const algo = $("#algo").value;
+  const v = validateInput(state.rows, algo, $("#quantum").value);
+  showErrors(v.errors);
+  $("#stale").hidden = true;
+  if (v.errors.length) {
+    $("#results").hidden = true;
+    state.lastRun = null;
+    $("#errors").scrollIntoView({ block: "nearest" });
+    return;
+  }
+  const sim = simulate(v.processes, algo, v.quantum);
+  state.lastRun = { processes: v.processes, sim };
+  $("#results").hidden = false;
+  renderGantt(v.processes, sim);
+  renderResults(sim);
+  renderChecks(verifySchedule(v.processes, sim));
+  renderCompare(v.processes, algo, v.quantum);
+  renderTrace(sim);
+}
+
+function renderGantt(processes, sim) {
+  const segs = sim.segments;
+  const total = segs[segs.length - 1].end;
+  const pct = (x) => `${(x / total) * 100}%`;
+  const colorOf = new Map(processes.map((p, i) => [p.id, hue(i)]));
+  const isRR = sim.algorithm === "RR";
+
+  const arrivals = new Map();
+  processes.forEach((p) => arrivals.set(p.arrival, (arrivals.get(p.arrival) || []).concat(p.id)));
+  const maxStack = Math.max(...[...arrivals.values()].map((a) => a.length));
+  const arrivalsHtml = [...arrivals.entries()].map(([time, ids]) =>
+    `<div class="arrival" style="left:${pct(time)}" title="Arrival at ${time}: ${esc(ids.join(", "))}">${ids.map(esc).join("<br>")}<br>↓</div>`).join("");
+
+  const segHtml = segs.map((s) => {
+    const len = s.end - s.start;
+    const pos = `left:${pct(s.start)};width:${pct(len)}`;
+    if (s.pid === null) return `<div class="seg idle" style="${pos}" title="CPU idle ${s.start}–${s.end}">idle</div>`;
+    const slice = isRR ? `<small>slice ${s.slice}</small>` : "";
+    const tip = `${s.pid}: ${s.start}–${s.end} (${len} unit${len === 1 ? "" : "s"}${isRR ? `, slice #${s.slice}` : ""})`;
+    return `<div class="seg" style="${pos};background:hsl(${colorOf.get(s.pid)} var(--seg-s) var(--seg-l))" title="${esc(tip)}">${esc(s.pid)}${slice}</div>`;
+  }).join("");
+
+  const bounds = [...new Set(segs.flatMap((s) => [s.start, s.end]))];
+  const tickHtml = bounds.map((b) => `<div class="tick" style="left:${pct(b)}">${b}</div>`).join("");
+
+  const g = $("#gantt");
+  g.style.minWidth = `${Math.min(total * 34, 20000)}px`;
+  g.innerHTML = `
+    <div class="gantt-arrivals" style="height:${maxStack * 14 + 18}px">${arrivalsHtml}</div>
+    <div class="gantt-bars">${segHtml}</div>
+    <div class="gantt-ticks">${tickHtml}</div>`;
+  $("#gantt-algo").textContent = sim.algorithm + (isRR ? ` · q = ${sim.quantum}` : "");
+  $("#gantt-legend").innerHTML = processes.map((p) =>
+    `<span><span class="swatch" style="background:hsl(${colorOf.get(p.id)} var(--seg-s) var(--seg-l))"></span>${esc(p.id)}</span>`).join("")
+    + `<span><span class="swatch" style="background:repeating-linear-gradient(45deg,var(--idle-a) 0 3px,var(--idle-b) 3px 6px)"></span>CPU idle</span>`
+    + `<span>↓ arrival</span>`
+    + (isRR ? `<span>Every block is one time slice; a border separates consecutive slices of the same process.</span>` : "");
+}
+
+function renderResults(sim) {
+  const n = sim.results.length;
+  const card = (label, key) => `<div class="stat"><div class="label">Average ${label}</div>
+    <div class="value">${fmt(sim.averages[key])}</div><div class="frac">${sim.totals[key]} / ${n}</div></div>`;
+  $("#stats").innerHTML = card("turnaround", "turnaround") + card("waiting", "waiting") + card("response", "response");
+  $("#results-table tbody").innerHTML = sim.results.map((r) => `<tr>
+    <td>${esc(r.id)}</td><td class="num">${r.arrival}</td><td class="num">${r.burst}</td><td class="num">${r.firstStart}</td>
+    <td class="num">${r.completion}</td><td class="num">${r.turnaround}</td><td class="num">${r.waiting}</td><td class="num">${r.response}</td></tr>`).join("");
+  $("#results-table tfoot").innerHTML = `<tr><td colspan="5">Average</td>
+    <td class="num">${fmt(sim.averages.turnaround)}</td><td class="num">${fmt(sim.averages.waiting)}</td><td class="num">${fmt(sim.averages.response)}</td></tr>`;
+}
+
+function renderChecks(checks) {
+  $("#checks").innerHTML = checks.map((c) =>
+    `<li><span class="${c.pass ? "pass" : "fail"}">${c.pass ? "✓ Pass" : "✗ Fail"}</span> — ${esc(c.name)}${c.pass ? "" : `: ${esc(c.detail)}`}</li>`).join("");
+}
+
+function renderCompare(processes, algo, quantum) {
+  const configs = [["FCFS"], ["SJF"], ["SRTF"]];
+  const qs = [1, 2, 4];
+  if (quantum && !qs.includes(quantum)) qs.push(quantum);
+  qs.sort((a, b) => a - b).forEach((q) => configs.push(["RR", q]));
+  const rows = configs.map(([a, q]) => {
+    const sim = simulate(processes, a, q || null);
+    return { a, q, avg: sim.averages, finish: sim.segments[sim.segments.length - 1].end };
+  });
+  const best = (k) => Math.min(...rows.map((r) => r.avg[k]));
+  const b = { turnaround: best("turnaround"), waiting: best("waiting"), response: best("response") };
+  const cell = (r, k) => `<td class="num${Math.abs(r.avg[k] - b[k]) < 1e-9 ? " best" : ""}">${fmt(r.avg[k])}</td>`;
+  $("#compare-table tbody").innerHTML = rows.map((r) => {
+    const current = r.a === algo && (r.a !== "RR" || r.q === quantum);
+    return `<tr class="${current ? "current" : ""}"><td>${r.a}${r.q ? ` (q = ${r.q})` : ""}</td>
+      ${cell(r, "turnaround")}${cell(r, "waiting")}${cell(r, "response")}<td class="num">${r.finish}</td></tr>`;
+  }).join("");
+}
+
+function renderTrace(sim) {
+  $("#trace").innerHTML = sim.trace.map((e) =>
+    `<tr><td>t = ${e.time}</td><td>${esc(e.event)}</td><td class="q">${esc(e.queue)}</td></tr>`).join("");
+}
+
+function renderSelfTests() {
+  const results = runSelfTests();
+  const passed = results.filter((r) => r.pass).length;
+  const badge = $("#selftest-summary");
+  badge.textContent = `${passed} / ${results.length} passed`;
+  badge.className = `badge ${passed === results.length ? "pass" : "fail"}`;
+  $("#selftests").innerHTML = results.map((r) =>
+    `<tr><td>${esc(r.name)}</td><td class="${r.pass ? "pass" : "fail"}">${r.pass ? "Pass" : "Fail"}</td><td class="q">${esc(r.detail)}</td></tr>`).join("");
+  if (passed !== results.length) $("#selftest-details").open = true;
+}
+
+// ----- Events -----
+$("#process-rows").addEventListener("input", (e) => {
+  const el = e.target;
+  if (!el.dataset.f) return;
+  state.rows[Number(el.dataset.i)][el.dataset.f] = el.value;
+  el.removeAttribute("aria-invalid");
+  markStale();
+});
+$("#process-rows").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-act]");
+  if (!btn) return;
+  const i = Number(btn.dataset.i);
+  const act = btn.dataset.act;
+  if (act === "del") state.rows.splice(i, 1);
+  if (act === "up" && i > 0) [state.rows[i - 1], state.rows[i]] = [state.rows[i], state.rows[i - 1]];
+  if (act === "down" && i < state.rows.length - 1) [state.rows[i + 1], state.rows[i]] = [state.rows[i], state.rows[i + 1]];
+  renderRows();
+  markStale();
+});
+$("#add-btn").addEventListener("click", () => {
+  const last = state.rows[state.rows.length - 1];
+  state.rows.push({ id: nextFreeId(), arrival: last ? last.arrival : "0", burst: "1" });
+  renderRows();
+  markStale();
+  const inputs = document.querySelectorAll('#process-rows input[data-f="id"]');
+  inputs[inputs.length - 1].focus();
+});
+$("#clear-btn").addEventListener("click", () => {
+  state.rows = [];
+  renderRows();
+  markStale();
+});
+$("#run-btn").addEventListener("click", run);
+$("#algo").addEventListener("change", () => { updateQuantumHint(); if (state.lastRun) run(); });
+$("#quantum").addEventListener("input", markStale);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && e.target.matches("input")) run();
+});
+$("#load-btn").addEventListener("click", () => loadWorkload($("#preset").value));
+
+function updateQuantumHint() {
+  const rr = $("#algo").value === "RR";
+  $("#quantum-hint").textContent = rr ? "Positive integer. Arrivals at a quantum boundary join the queue before the preempted process."
+    : "Used only by Round Robin (and the RR rows of the comparison table).";
+}
+
+$("#preset").innerHTML = Object.entries(WORKLOADS).map(([k, w]) => `<option value="${k}">${esc(w.label)}</option>`).join("");
+updateQuantumHint();
+renderSelfTests();
+loadWorkload("A");
 </script>
 </body>
 </html>
