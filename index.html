@@ -362,6 +362,7 @@
               <option value="1" selected>1×</option>
               <option value="2">2×</option>
               <option value="4">4×</option>
+              <option value="10">10×</option>
             </select>
           </label>
         </div>
@@ -449,14 +450,16 @@ const ALGORITHM_NAMES = {
   SRTF: "Shortest Remaining Time First (preemptive)",
   RR: "Round Robin",
 };
-const LIMITS = { maxProcesses: 50, maxTime: 10000 };
+// maxTime bounds every input value and the whole timeline (latest arrival + total CPU burst), so the
+// Gantt chart, the decision trace and the step-by-step view stay readable and responsive.
+const LIMITS = { maxProcesses: 50, maxTime: 1000 };
 
 // Parses a user-typed number. Returns { value } or { error }.
 function parseWholeNumber(text, label, min) {
   const s = String(text == null ? "" : text).trim();
   if (s === "") return { error: `${label} is empty.` };
   if (!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(s)) return { error: `${label} must be a whole number (got "${s}").` };
-  const n = Number(s);
+  const n = Number(s) + 0; // + 0 turns "-0" into 0
   if (!Number.isInteger(n)) return { error: `${label} must be an integer (got ${s}).` };
   if (n < min) {
     return { error: min === 0 ? `${label} cannot be negative (got ${n}).` : `${label} must be a positive integer (got ${n}).` };
@@ -502,6 +505,12 @@ function validateInput(rows, algorithm, quantumText) {
     if (b.error) { errors.push({ row, field: "burst", message: b.error }); ok = false; }
     if (ok) processes.push({ id, arrival: a.value, burst: b.value });
   });
+  if (!errors.length && processes.length) {
+    const horizon = Math.max(...processes.map((p) => p.arrival)) + processes.reduce((acc, p) => acc + p.burst, 0);
+    if (horizon > LIMITS.maxTime) {
+      errors.push({ row: null, field: null, message: `The schedule could run until t = ${horizon} (latest arrival + total CPU burst). This simulator supports timelines up to ${LIMITS.maxTime} time units so that the Gantt chart and the step-by-step view stay readable. Use smaller arrival times or bursts.` });
+    }
+  }
   let quantum = null;
   if (algorithm === "RR") {
     const q = parseWholeNumber(quantumText, "Time quantum", 1);
@@ -680,13 +689,9 @@ function simulate(processes, algorithm, quantum) {
   return { algorithm, quantum: algorithm === "RR" ? quantum : null, segments, results, totals, averages, trace };
 }
 
-// CPU time process `id` received before time t, read from the timeline.
-function executedBefore(segments, id, t) {
-  return segments.reduce((acc, s) => (s.pid === id && s.start < t ? acc + Math.min(s.end, t) - s.start : acc), 0);
-}
-
 // Steps for the step-by-step view: a start step, one step per trace event, and one "tick" step
-// for every time unit in which nothing happens (the running process just keeps running).
+// for every time unit in which nothing happens while a process runs. An idle gap is a single
+// step (its "CPU idle until …" event), however long it is.
 function buildFrames(processes, sim) {
   const end = sim.segments[sim.segments.length - 1].end;
   const byArrivalThenInput = processes.map((p, i) => ({ p, i })).sort((x, y) => x.p.arrival - y.p.arrival || x.i - y.i);
@@ -695,7 +700,6 @@ function buildFrames(processes, sim) {
     event: "Simulation starts. No process has joined the ready queue yet.",
     state: { running: null, ready: [], pending: byArrivalThenInput.map((x) => x.p.id), done: [] },
   }];
-  const burst = new Map(processes.map((p) => [p.id, p.burst]));
   let ti = 0;
   for (let t = 0; t <= end; t++) {
     let any = false;
@@ -705,15 +709,13 @@ function buildFrames(processes, sim) {
       ti++;
       any = true;
     }
-    if (!any && t < end) {
-      const prev = frames[frames.length - 1].state;
-      let running = null;
-      let event = "CPU idle: waiting for the next arrival.";
-      if (prev.running) {
-        const remaining = burst.get(prev.running.id) - executedBefore(sim.segments, prev.running.id, t);
-        running = { id: prev.running.id, remaining };
-        event = `${running.id} keeps running (${remaining} left). No arrival, completion or quantum boundary at ${t}.`;
-      }
+    const prevFrame = frames[frames.length - 1];
+    if (!any && t < end && prevFrame.state.running) {
+      // No event since prevFrame, so the same process has run without interruption.
+      const prev = prevFrame.state;
+      const remaining = prev.running.remaining - (t - prevFrame.time);
+      const running = { id: prev.running.id, remaining };
+      const event = `${running.id} keeps running (${remaining} left). No arrival, completion or quantum boundary at ${t}.`;
       frames.push({ time: t, kind: "tick", traceIndex: -1, event, state: Object.assign({}, prev, { running }) });
     }
   }
@@ -726,8 +728,25 @@ function checkFrames(processes, sim, frames) {
   const problems = [];
   const info = new Map(processes.map((p) => [p.id, p]));
   const completion = new Map(sim.results.map((r) => [r.id, r.completion]));
-  const end = sim.segments[sim.segments.length - 1].end;
+  const segs = sim.segments;
+  const end = segs[segs.length - 1].end;
+  // Sweep the timeline once: frames are in time order, so `k` only moves forward.
+  // After advance(t), segs[k] is the first segment that ends after t and `full` holds
+  // the CPU time of every segment that ended at or before t.
+  const full = new Map(processes.map((p) => [p.id, 0]));
+  let k = 0;
+  const advance = (t) => {
+    while (k < segs.length && segs[k].end <= t) {
+      if (segs[k].pid !== null) full.set(segs[k].pid, full.get(segs[k].pid) + segs[k].end - segs[k].start);
+      k++;
+    }
+  };
+  const executedBefore = (id, t) => {
+    const cur = segs[k];
+    return full.get(id) + (cur && cur.pid === id && cur.start < t ? t - cur.start : 0);
+  };
   frames.forEach((f, i) => {
+    advance(f.time);
     const s = f.state;
     const where = `Step ${i} (t=${f.time}, ${f.kind})`;
     const active = s.running ? [s.running].concat(s.ready) : s.ready;
@@ -738,7 +757,7 @@ function checkFrames(processes, sim, frames) {
     s.pending.forEach((id) => { if (info.get(id).arrival < f.time) problems.push(`${where}: ${id} is still shown as not arrived.`); });
     active.forEach((x) => {
       if (info.get(x.id).arrival > f.time) problems.push(`${where}: ${x.id} is shown before its arrival.`);
-      const expected = info.get(x.id).burst - executedBefore(sim.segments, x.id, f.time);
+      const expected = info.get(x.id).burst - executedBefore(x.id, f.time);
       if (x.remaining !== expected) problems.push(`${where}: ${x.id} shows ${x.remaining} remaining; the timeline gives ${expected}.`);
     });
     s.done.forEach((id) => { if (completion.get(id) > f.time) problems.push(`${where}: ${id} is shown as completed before ${completion.get(id)}.`); });
@@ -746,7 +765,7 @@ function checkFrames(processes, sim, frames) {
     const lastAtThisTime = i === frames.length - 1 || frames[i + 1].time !== f.time;
     if (lastAtThisTime) {
       s.pending.forEach((id) => { if (info.get(id).arrival <= f.time) problems.push(`${where}: ${id} has arrived but is not in the ready queue.`); });
-      const seg = sim.segments.find((g) => g.start <= f.time && f.time < g.end);
+      const seg = segs[k] && segs[k].start <= f.time ? segs[k] : null;
       const expected = seg ? seg.pid : null;
       const shown = s.running ? s.running.id : null;
       if (shown !== expected) problems.push(`${where}: the CPU shows ${shown || "idle"}, the timeline has ${expected || "idle"}.`);
@@ -853,6 +872,16 @@ const SELF_TESTS = [
     procs: [{ id: "P1", arrival: 0, burst: 1 }, { id: "Pb", arrival: 1, burst: 2 }, { id: "Pa", arrival: 1, burst: 2 }], gantt: "P1 0-1 | Pb 1-3 | Pa 3-5" },
   { name: "FCFS: simultaneous arrivals → input order wins", algo: "FCFS",
     procs: [{ id: "X", arrival: 3, burst: 2 }, { id: "Y", arrival: 3, burst: 1 }], gantt: "idle 0-3 | X 3-5 | Y 5-6" },
+  { name: "Edge: a single process arriving late (idle first)", algo: "SRTF",
+    procs: [{ id: "P1", arrival: 5, burst: 3 }], gantt: "idle 0-5 | P1 5-8", avg: [3, 0, 0] },
+  { name: "Edge: RR with a quantum larger than every burst equals FCFS", w: "A", algo: "RR", q: 10,
+    gantt: "P1 0-8 | P2 8-12 | P3 12-14 | P4 14-15", avg: [10.5, 6.75, 6.75] },
+  { name: "Edge: identical processes are served in input order (SRTF)", algo: "SRTF",
+    procs: [{ id: "C", arrival: 0, burst: 2 }, { id: "A", arrival: 0, burst: 2 }, { id: "B", arrival: 0, burst: 2 }], gantt: "C 0-2 | A 2-4 | B 4-6" },
+  { name: "Edge: RR q=1 with one process gives consecutive one-unit slices", algo: "RR", q: 1,
+    procs: [{ id: "P1", arrival: 2, burst: 3 }], gantt: "idle 0-2 | P1 2-3 | P1 3-4 | P1 4-5" },
+  { name: "Edge: two idle gaps and an arrival exactly at a completion", algo: "SJF",
+    procs: [{ id: "P1", arrival: 1, burst: 2 }, { id: "P2", arrival: 3, burst: 1 }, { id: "P3", arrival: 7, burst: 1 }], gantt: "idle 0-1 | P1 1-3 | P2 3-4 | idle 4-7 | P3 7-8" },
 ];
 
 const VALIDATION_TESTS = [
@@ -866,6 +895,17 @@ const VALIDATION_TESTS = [
   { name: "Rejects quantum 0 for round robin", rows: [{ id: "P1", arrival: "0", burst: "2" }], algo: "RR", quantum: "0", expect: "quantum" },
   { name: "Rejects an empty workload", rows: [], algo: "FCFS", expect: "at least one" },
   { name: "Accepts a valid workload", rows: [{ id: "P1", arrival: "0", burst: "2" }], algo: "RR", quantum: "2", expect: null },
+  { name: "Accepts \"007\", \"+3\" and surrounding spaces", rows: [{ id: " P1 ", arrival: " 007 ", burst: "+3" }], algo: "FCFS", expect: null },
+  { name: "Rejects scientific notation (1e2)", rows: [{ id: "P1", arrival: "1e2", burst: "2" }], algo: "FCFS", expect: "whole number" },
+  { name: "Rejects \"Infinity\"", rows: [{ id: "P1", arrival: "0", burst: "Infinity" }], algo: "FCFS", expect: "whole number" },
+  { name: "Rejects an ID longer than 12 characters", rows: [{ id: "ProcessNumber13", arrival: "0", burst: "2" }], algo: "FCFS", expect: "1–12" },
+  { name: "Rejects an ID with spaces or markup", rows: [{ id: "<b>P 1</b>", arrival: "0", burst: "2" }], algo: "FCFS", expect: "1–12" },
+  { name: "Rejects a value above the limit", rows: [{ id: "P1", arrival: "0", burst: "1001" }], algo: "FCFS", expect: "too large" },
+  { name: "Rejects a huge number without overflowing", rows: [{ id: "P1", arrival: "0", burst: "99999999999999999999" }], algo: "FCFS", expect: "too large" },
+  { name: "Rejects a timeline longer than the limit", rows: [{ id: "P1", arrival: "900", burst: "60" }, { id: "P2", arrival: "0", burst: "60" }], algo: "FCFS", expect: "timelines up to" },
+  { name: "Rejects more than 50 processes", rows: Array.from({ length: 51 }, (_, i) => ({ id: `P${i + 1}`, arrival: "0", burst: "1" })), algo: "FCFS", expect: "too many" },
+  { name: "Rejects a quantum above the limit", rows: [{ id: "P1", arrival: "0", burst: "2" }], algo: "RR", quantum: "1000000000", expect: "too large" },
+  { name: "Ignores the quantum field for non-RR algorithms", rows: [{ id: "P1", arrival: "0", burst: "2" }], algo: "SJF", quantum: "", expect: null },
 ];
 
 function runSelfTests() {
@@ -899,7 +939,7 @@ function runSelfTests() {
     out.push({ name: `Step view ↔ timeline · ${w.label} (7 configurations)`, pass: problems.length === 0, detail: problems.join(" ") || "All steps consistent." });
   });
   VALIDATION_TESTS.forEach((tc) => {
-    const v = validateInput(tc.rows, tc.algo, tc.quantum || "2");
+    const v = validateInput(tc.rows, tc.algo, tc.quantum !== undefined ? tc.quantum : "2");
     const msgs = v.errors.map((e) => e.message).join(" ");
     const pass = tc.expect === null ? v.errors.length === 0 : msgs.toLowerCase().includes(tc.expect);
     out.push({ name: tc.name, pass, detail: msgs || "No errors." });
@@ -1402,6 +1442,9 @@ $("#trace-details").addEventListener("toggle", () => {
 document.addEventListener("keydown", (e) => {
   if (state.mode !== "sim" || !state.current || $("#player").hidden) return;
   if (e.target.matches("input[type=text], select, textarea")) return;
+  // Let focused controls act natively instead of handling the key twice.
+  if (e.target.matches("input[type=range]") && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+  if (e.key === " " && e.target.matches("button, input[type=radio], summary")) return;
   if (e.key === " ") { e.preventDefault(); state.playing ? pause() : play(); }
   else if (e.key === "ArrowRight") { e.preventDefault(); step(1); }
   else if (e.key === "ArrowLeft") { e.preventDefault(); step(-1); }
