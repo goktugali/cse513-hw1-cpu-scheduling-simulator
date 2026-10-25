@@ -17,7 +17,7 @@ Everything runs in the browser. There is no backend, database or network request
 
 - **Processes:** add, edit, reorder (↑ ↓) and remove processes. Each process has an ID, an arrival time and a CPU burst. The input order is the final tie-breaker.
 - **Algorithm and quantum:** choose FCFS, SJF, SRTF or RR. The quantum is used only by RR.
-- **Example workloads:** load Workloads A and B from the assignment, the three student test cases C, D and E, or three worked examples from the Lecture 2 slides.
+- **Example workloads:** load Workloads A and B from the assignment, the three additional test cases C, D and E, or three worked examples from the Lecture 2 slides.
 - **Fast run mode:** results are recomputed on every valid change.
 - **Simulate mode:** step through the schedule (play, pause, step, slider). Each step shows the not-yet-arrived processes, the ready queue in selection order (FIFO for RR), the CPU and the completed processes, with an explanation of the decision.
 - **Outputs:**
