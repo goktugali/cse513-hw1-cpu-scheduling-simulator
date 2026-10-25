@@ -284,6 +284,11 @@
   .trace tr.current td { background: var(--row-hl); font-weight: 600; }
   .badge { display: inline-block; font-size: 0.72rem; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); font-weight: 500; }
   footer { color: var(--muted); font-size: 0.82rem; margin-top: 24px; }
+  /* ?view=output: only the Gantt chart and the results, for report figures. */
+  body.output-only main { padding-top: 8px; padding-bottom: 8px; }
+  body.output-only h1, body.output-only .subtitle, body.output-only .layout, body.output-only footer,
+  body.output-only #player, body.output-only .panel:has(#trace-details), body.output-only .panel:has(#checks),
+  body.output-only .panel:has(#compare-table), body.output-only .panel:has(#selftest-details) { display: none !important; }
 </style>
 </head>
 <body>
@@ -833,6 +838,14 @@ const WORKLOADS = {
   B: { label: "Workload B (assignment)", quantum: 2, processes: [
     { id: "P1", arrival: 2, burst: 3 }, { id: "P2", arrival: 2, burst: 1 },
     { id: "P3", arrival: 8, burst: 2 }, { id: "P4", arrival: 9, burst: 1 }] },
+  C: { label: "Test C: CPU idle time", quantum: 2, processes: [
+    { id: "P1", arrival: 1, burst: 2 }, { id: "P2", arrival: 6, burst: 3 }, { id: "P3", arrival: 7, burst: 1 }] },
+  D: { label: "Test D: simultaneous arrivals and ties", quantum: 2, processes: [
+    { id: "P1", arrival: 0, burst: 3 }, { id: "P2", arrival: 0, burst: 3 },
+    { id: "P3", arrival: 0, burst: 2 }, { id: "P4", arrival: 1, burst: 3 }] },
+  E: { label: "Test E: SRTF preemption", quantum: 2, processes: [
+    { id: "P1", arrival: 0, burst: 7 }, { id: "P2", arrival: 2, burst: 4 },
+    { id: "P3", arrival: 3, burst: 1 }, { id: "P4", arrival: 5, burst: 2 }] },
   L1: { label: "Lecture 2: 24 / 3 / 3, all at 0", quantum: 4, processes: [
     { id: "P1", arrival: 0, burst: 24 }, { id: "P2", arrival: 0, burst: 3 }, { id: "P3", arrival: 0, burst: 3 }] },
   L2: { label: "Lecture 2: SJF 6 / 8 / 7 / 3", quantum: 2, processes: [
@@ -853,6 +866,11 @@ const SELF_TESTS = [
   { name: "Workload B · SJF", w: "B", algo: "SJF", gantt: "idle 0-2 | P2 2-3 | P1 3-6 | idle 6-8 | P3 8-10 | P4 10-11", avg: [2.25, 0.5, 0.5] },
   { name: "Workload B · SRTF (tie at 9 keeps P3)", w: "B", algo: "SRTF", gantt: "idle 0-2 | P2 2-3 | P1 3-6 | idle 6-8 | P3 8-10 | P4 10-11", avg: [2.25, 0.5, 0.5] },
   { name: "Workload B · RR q=2", w: "B", algo: "RR", q: 2, gantt: "idle 0-2 | P1 2-4 | P2 4-5 | P1 5-6 | idle 6-8 | P3 8-10 | P4 10-11", avg: [2.75, 1, 0.75] },
+  { name: "Test C · FCFS: idle at the start and between bursts", w: "C", algo: "FCFS", gantt: "idle 0-1 | P1 1-3 | idle 3-6 | P2 6-9 | P3 9-10", avg: [8 / 3, 2 / 3, 2 / 3] },
+  { name: "Test C · RR q=2: arrival inside a slice after an idle gap", w: "C", algo: "RR", q: 2, gantt: "idle 0-1 | P1 1-3 | idle 3-6 | P2 6-8 | P3 8-9 | P2 9-10", avg: [8 / 3, 2 / 3, 1 / 3] },
+  { name: "Test D · SJF: equal bursts → arrival, then input order", w: "D", algo: "SJF", gantt: "P3 0-2 | P1 2-5 | P2 5-8 | P4 8-11", avg: [6.25, 3.5, 3.5] },
+  { name: "Test D · FCFS: three arrivals at 0 → input order", w: "D", algo: "FCFS", gantt: "P1 0-3 | P2 3-6 | P3 6-8 | P4 8-11", avg: [6.75, 4, 4] },
+  { name: "Test E · SRTF: two preemptions, then an equal-time tie", w: "E", algo: "SRTF", gantt: "P1 0-2 | P2 2-3 | P3 3-4 | P2 4-7 | P4 7-9 | P1 9-14", avg: [6, 2.5, 0.5] },
   { name: "Lecture 2 slide 19 · FCFS 24/3/3", w: "L1", algo: "FCFS", gantt: "P1 0-24 | P2 24-27 | P3 27-30", avg: [27, 17, 17] },
   { name: "Lecture 2 slide 34 · SJF 24/3/3 (P2 before P3)", w: "L1", algo: "SJF", gantt: "P2 0-3 | P3 3-6 | P1 6-30", avg: [13, 3, 3] },
   { name: "Lecture 2 slide 31 · RR q=4 24/3/3", w: "L1", algo: "RR", q: 4, gantt: "P1 0-4 | P2 4-7 | P3 7-10 | P1 10-14 | P1 14-18 | P1 18-22 | P1 22-26 | P1 26-30", avg: [47 / 3, 17 / 3, 11 / 3] },
@@ -1454,11 +1472,23 @@ document.addEventListener("keydown", (e) => {
 
 // ----- Start -----
 $("#preset").innerHTML = Object.entries(WORKLOADS).map(([k, w]) => `<option value="${k}">${esc(w.label)}</option>`).join("");
-state.mode = readSavedMode();
+// Optional URL parameters open a specific example, e.g. ?w=B&algo=RR&q=2&mode=sim.
+// view=output shows only the Gantt chart and the results (used for report figures).
+const params = new URLSearchParams(location.search);
+const startWorkload = WORKLOADS[params.get("w")] ? params.get("w") : "A";
+if (ALGORITHM_NAMES[params.get("algo")]) $("#algo").value = params.get("algo");
+state.mode = ["fast", "sim"].includes(params.get("mode")) ? params.get("mode") : readSavedMode();
+if (params.get("view") === "output") document.body.classList.add("output-only");
+if (["light", "dark"].includes(params.get("theme"))) document.documentElement.dataset.theme = params.get("theme");
 document.querySelector(`input[name="mode"][value="${state.mode}"]`).checked = true;
+$("#preset").value = startWorkload;
 updateQuantumHint();
 renderSelfTests();
-loadWorkload("A");
+loadWorkload(startWorkload);
+if (params.has("q")) {
+  $("#quantum").value = params.get("q");
+  update();
+}
 </script>
 </body>
 </html>
